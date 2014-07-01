@@ -11,6 +11,10 @@
 #include "ece454rpc_types.h"
 #include "ece454_fs.h"
 
+#if 1
+#define _DEBUG_1_
+#endif
+
 struct fsDirent dent;
 
 extern void recvbytes(int, void *, ssize_t);
@@ -25,11 +29,20 @@ return_type ans;
 int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *localFolderName) {
 	printf("fsMount:\n"); fflush(stdout);
 	return_type ans;
- 	ans = make_remote_call(srvIpOrDomName, srvPort, "fsMount", 0 );
- 	printf("Return val: ", ans.return_val);
- 	struct stat sbuf;
 
-    return(stat(localFolderName, &sbuf));
+#ifdef _DEBUG_1
+	printf("fsMount Client: %s\n", localFolderName); fflush(stdout);
+#endif
+ 	ans = make_remote_call(srvIpOrDomName, srvPort, "fsMount_remote", 1, 
+ 			sizeof(localFolderName), localFolderName );
+
+#ifdef _DEBUG_1
+ 	printf("fsMount Client: Return val: ", ans.return_val);
+#endif 	
+ 	return ans.return_val;
+ 	//struct stat sbuf;
+
+    //return(stat(localFolderName, &sbuf));
  	//return 0;
 }
 
