@@ -2,12 +2,12 @@ To run this DFS application:
 
 1. make clean
 2. make libstubs.a
-3. make fs_server
-4. make fs_client
-4. ./fs_server
+3. make server
+4. make client
+4. ./server
 
-Get the output from fs_server i.e. serverIpOrName and serverPort
+Get the output from server i.e. serverIpOrName and serverPort
 
-5. ./fs_client . 129.97.56.12 10000
+5. ./client . 129.97.56.12 10000
 
 Change the parameters to fs_client as desired.
