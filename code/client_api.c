@@ -241,27 +241,30 @@ FSDIR* fsOpenDir(const char *folderName) {
     return (FSDIR *)ans.return_val;
 }
 
-//int fsCloseDir(FSDIR *folder) {
-//#ifdef _DEBUG_1_
-//	printf("FS Close Dir:\n"); fflush(stdout);
-//#endif
-	// http://pubs.opengroup.org/onlinepubs/7908799/xsh/dirent.h.html
-//	char *folderName = folder->d_name;
-//	struct mounted_servers *rem_server= getRemoteServer(folderName);
-//	if( rem_server == NULL) {
-//#ifdef _DEBUG_1_
-//	printf("FS Close Dir: Count not fetch remote server belonging to FSDIR * folder\n"); fflush(stdout);
-//#endif
-//		return NULL:
-//	}
-	//FSDIR *curFolder = (FSDIR *)malloc(sizeof(folder));
-	//curFolder->d_name = folderName;
-	//curFolder->d_ino = folder->d_ino;
-//	ans = make_remote_call(rem_server->srvIpOrDomName, rem_server->srvPort, "fsCloseDir_remote", 1, 
-//		sizeof(curFolder), curFolder);
+int fsCloseDir(FSDIR *folder) {
 
-//	return *(int *)ans.return_val;
-//}
+#ifdef _DEBUG_1_
+	printf("FS Close Dir:\n"); fflush(stdout);
+#endif
+	// http://pubs.opengroup.org/onlinepubs/7908799/xsh/dirent.h.html
+	char *folderName = folder->name;
+#ifdef _DEBUG_1_
+	printf("FS Close Dir %s:\n", folderName); fflush(stdout);
+#endif
+	
+	struct mounted_servers *rem_server = getRemoteServer(folderName);
+	if( rem_server == NULL) {
+#ifdef _DEBUG_1_
+	printf("FS Close Dir: Count not fetch remote server belonging to FSDIR * folder\n"); fflush(stdout);
+#endif
+		return -1;
+	}
+
+	ans = make_remote_call(rem_server->srvIpOrDomName, rem_server->srvPort, "fsCloseDir_remote", 1, 
+		sizeof(*folder), folder);
+
+	return *(int *)ans.return_val;
+}
 
 struct fsDirent *fsReadDir(FSDIR *folder) {
     const int initErrno = errno;

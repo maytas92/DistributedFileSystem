@@ -42,6 +42,8 @@ int main(int argc, char *argv[]) {
         printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
     }
 
+    printf("Closing folder %s with return code %d\n", dirname, fsCloseDir(fd));
+
     printf("fsUnMount(): UnMounting %s with result %d\n", dirname, fsUnMount(dirname));
 
     //printf("fsCloseDir(): %d\n", fsCloseDir(fd));

@@ -343,29 +343,29 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
 }
 
 
-//return_type fsCloseDir_remote(const int nparams, arg_type* a) {
-//#ifdef _DEBUG_1_
-//	printf("FS Server: fsCloseDir\n"); fflush(stdout);
-//#endif
-//	if(nparams != 1) {
-//#ifdef _DEBUG_1_
-//	printf("fsCloseDir_remote: Number of params incorrect\n"); fflush(stdout);
-//#endif
-/*		errno = EINVAL;
+return_type fsCloseDir_remote(const int nparams, arg_type* a) {
+#ifdef _DEBUG_1_
+	printf("FS Server: fsCloseDir\n"); fflush(stdout);
+#endif
+	if(nparams != 1) {
+#ifdef _DEBUG_1_
+	printf("fsCloseDir_remote: Number of params incorrect\n"); fflush(stdout);
+#endif
+		errno = EINVAL;
 		r.return_size = 0;
 		r.return_val = NULL;
 		return r;
 	}
 	FSDIR * curDir = (FSDIR *)a->arg_val;
 	int *close_ret_int = (int *)malloc(sizeof(int));
-	*close_ret_int = closedir(curDir);
+	*close_ret_int = closedir(curDir->dir);
 
 	r.return_val = (void *)close_ret_int;
 	r.return_size = sizeof(int);
 
 	return r;
 }
-*/
+
 
 int mount_folder(const char *folderName) {
 	struct stat sbuf;
@@ -385,7 +385,7 @@ int main(int argc, char *argv[]) {
     register_procedure("fsOpenDir_remote", 2, fsOpenDir_remote);
     register_procedure("fsReadDir_remote", 1, fsReadDir_remote);
     //register_procedure("fsCloseDir_remote", 2, fsCloseDir_remote);
-    //register_procedure("fsCloseDir_remote", 1, fsCloseDir_remote);
+    register_procedure("fsCloseDir_remote", 1, fsCloseDir_remote);
 
 #ifdef _DEBUG_1_
     printRegisteredProcedures();
