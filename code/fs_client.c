@@ -20,18 +20,33 @@ int main(int argc, char *argv[]) {
         strcpy(dirname, ".");
     }
 
-    printf("fsMount(): %d\n", fsMount(argv[2], atoi(argv[3]), dirname));
-    printf("fsMount(): %d\n", fsMount(argv[2], atoi(argv[3]), mount_test));
-    
-    printf("fsUnMount(): %d\n", fsUnMount(dirname));
-    printf("fsUnMount(): %d\n", fsUnMount(mount_test));
+    printf("fsUnMount(): Unmounting %s with result %d\n", dirname, fsUnMount(dirname));
+    printf("fsUnMount(): Unmouunting %s with result %d\n", mount_test, fsUnMount(mount_test));
 
-    /*
-    FSDIR *fd = fsOpenDir(dirname);
+    printf("fsMount(): Directory %s with result %d\n", dirname, fsMount(argv[2], atoi(argv[3]), dirname));
+    printf("fsMount(): Directory %s with result %d\n", mount_test, fsMount(argv[2], atoi(argv[3]), mount_test));
+    
+    printf("fsUnMount(): Unmounting %s with result %d\n", dirname, fsUnMount(dirname));
+    printf("fsUnMount(): Unmounting %s with result %d\n", mount_test, fsUnMount(mount_test));
+
+    printf("fsMount(): Mounting %s with result %d\n", dirname, fsMount(argv[2], atoi(argv[3]), dirname));
+
+    char * openDir = "tmp1";
+    FSDIR *fd = fsOpenDir(openDir);
     if(fd == NULL) {
-    perror("fsOpenDir"); exit(1);
+        perror("fsOpenDir"); exit(1);
     }
 
+    struct fsDirent *fdent = NULL;
+    for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd)) {
+        printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
+    }
+
+    printf("fsUnMount(): UnMounting %s with result %d\n", dirname, fsUnMount(dirname));
+
+    //printf("fsCloseDir(): %d\n", fsCloseDir(fd));
+
+    /*
     struct fsDirent *fdent = NULL;
     for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd)) {
     printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));

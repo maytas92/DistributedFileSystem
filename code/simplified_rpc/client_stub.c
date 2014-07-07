@@ -64,8 +64,17 @@ return_type make_remote_call(const char *servernameorip,
     /* Make the remote call */
     int procnamelen = strlen(procedure_name)+1;
     sendbytes(s, (void *)(&procnamelen), sizeof(int));
+#ifdef _DEBUG_1_
+    printf("Send proc name len %d\n", procnamelen); fflush(stdout);
+#endif
     sendbytes(s, (void *)procedure_name, procnamelen);
+#ifdef _DEBUG_1_
+    printf("Send proc name %s\n", procedure_name); fflush(stdout);
+#endif
     sendbytes(s, (void *)(&nparams), sizeof(int));
+#ifdef _DEBUG_1_
+    printf("Send nparams %d\n", nparams); fflush(stdout);
+#endif
 
     va_list ap;
     int i;
@@ -79,10 +88,15 @@ return_type make_remote_call(const char *servernameorip,
 	pval = va_arg(ap, void *);
 
 #ifdef _DEBUG_1_
+    printf("The value of psize %d\n", psize);
+    //printf("The value of pval %s\n", (char *)pval);
+#endif
+#ifdef _DEBUG_1_
+    // not always a valid assumption e.g. tmp\0 could be a pval
 	if(psize == sizeof(int)) {
-	    printf("make_remote_call(), int-sized arg: %d\n",
-		    *(int *)pval);
-	    fflush(stdout);
+	    //printf("make_remote_call(), int-sized arg: %d\n",
+		//    *(int *)pval);
+	    //fflush(stdout);
 	}
 #endif
 
