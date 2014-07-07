@@ -12,23 +12,43 @@
 #include <stdint.h>
 
 /*
+* Used to keep track of open file FD's on the client side
+*/
+typedef struct clientFD {
+	int fd;
+	int ip; // client IP
+	char localFolderName[256];
+	struct clientFD *next;
+}clientFD;
+
+/*
+* Used to keep track of open files on the server side
+*/
+typedef struct fileOpen {
+	int mode;
+	int *next;
+	int fd;
+	char name[256];
+}fileOpen;
+
+/*
 * Linked list of clients that have mounted the server
 */
 struct client {
 	uint32_t clientIP;
 	char *localFolderName;
 	struct client * next;
+	fileOpen *fileOpenHead;
 };
 
 typedef struct FSDIR {
 	DIR *dir;
 	// assume that the length of the folder name does not exceed 256 bytes
+	// TODO: Fix this
 	char name[256]; 
 	//struct dirent entry;
 	//struct client who;
 }FSDIR;
-
-
 
 /* 
 * Linked list of servers that have been mounted on a client

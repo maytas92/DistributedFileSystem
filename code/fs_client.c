@@ -44,7 +44,17 @@ int main(int argc, char *argv[]) {
 
     printf("Closing folder %s with return code %d\n", dirname, fsCloseDir(fd));
 
+    int ff = fsOpen("tmp1/test.txt", 0);
+    if(ff < 0) {
+    perror("fsOpen"); exit(1);
+    }
+    else printf("fsOpen(): %d\n", ff);
+
+    printf("fsClose(): %d\n", fsClose(ff));
+
     printf("fsUnMount(): UnMounting %s with result %d\n", dirname, fsUnMount(dirname));
+
+    
 
     //printf("fsCloseDir(): %d\n", fsCloseDir(fd));
 

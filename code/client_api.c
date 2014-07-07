@@ -28,6 +28,8 @@ static int num_mounted_servers = 0;
 
 struct mounted_servers * ms_head = NULL;
 
+struct clientFD * clientFD_head = NULL;
+
 return_type ans;
 
 struct mounted_servers * getRemoteServer(const char * folderName) {
@@ -291,24 +293,151 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
 }
 
 int fsOpen(const char *fname, int mode) {
-    int flags = -1;
+	uint32_t clientIP = getPublicIPAddr();
+	char * tmpFName = malloc(strlen(fname) + 1);
+	strcpy(tmpFName, fname);
+	char *localFolderName = strtok(tmpFName, "/");
 
-    if(mode == 0) {
-	flags = O_RDONLY;
-    }
-    else if(mode == 1) {
-	flags = O_WRONLY | O_CREAT;
-    }
+	// should never be executed ideally, more of a safety net
+	if(localFolderName == NULL) {
+		strcpy(localFolderName, fname);
+	}
+#ifdef _DEBUG_1_
+    printf("FS Open: The foldername is %s\n", localFolderName);
+#endif
 
-    return(open(fname, flags, S_IRWXU));
+
+	struct mounted_servers *rem_server = getRemoteServer(localFolderName);
+	if( rem_server == NULL) {
+#ifdef _DEBUG_1_
+	printf("FS Open: Count not fetch remote server belonging to FSDIR * folder\n"); fflush(stdout);
+#endif
+		return -1;
+	}
+
+    ans = make_remote_call(rem_server->srvIpOrDomName, rem_server->srvPort, "fsOpen_remote", 4,
+    	sizeof(uint32_t), (void *)&clientIP,
+    	strlen(localFolderName) + 1, localFolderName,
+    	strlen(fname) + 1, fname,
+    	sizeof(mode), (void *)&mode
+    	);
+
+    int fd = *(int *)ans.return_val;
+
+#ifdef _DEBUG_1_
+    printf("FD id %d\n", fd);
+#endif
+    clientFD *newFD = malloc(sizeof(clientFD));
+    newFD->fd = fd;
+    newFD->ip = clientIP;
+    newFD->next = clientFD_head;
+#ifdef _DEBUG_1_
+    printf("assigning values done\n");
+#endif
+    strcpy(newFD->localFolderName, localFolderName);
+#ifdef _DEBUG_1_
+    printf("copied values\n");
+#endif
+    clientFD_head = newFD;
+
+    return fd;
+}
+
+struct clientFD * getClientByFD(const uint32_t ip, const int fd) {
+	struct clientFD *tmp = clientFD_head;
+
+	while(tmp != NULL) {
+		if(tmp->ip == ip && tmp->fd == fd) {
+			return tmp;
+		}
+		tmp = tmp->next;
+	}
+#ifdef _DEBUG_1_
+	printf("Unable to find client on the server side with ip %d and fd %d\n", ip, fd); fflush(stdout);
+#endif
+	return NULL;
 }
 
 int fsClose(int fd) {
-    return(close(fd));
+#ifdef _DEBUG_1_
+	printf("FS Close:\n"); fflush(stdout);
+#endif
+	uint32_t clientIP = getPublicIPAddr();
+	
+	struct clientFD *cfd = getClientByFD(clientIP, fd);
+	struct mounted_servers * ms;
+	if(cfd != NULL) {
+		ms = getRemoteServer(cfd->localFolderName);
+	}
+#ifdef _DEBUG_1_
+	printf("MS: %s\n", ms->localFolderName); fflush(stdout);
+#endif
+	if( ms == NULL) {
+#ifdef _DEBUG_1_
+	printf("FS Open: Count not fetch remote server belonging to FSDIR * folder\n"); fflush(stdout);
+#endif
+		return -1;
+	}
+
+	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsClose_remote", 3,
+    	sizeof(uint32_t), (void *)&clientIP,
+    	strlen(ms->localFolderName) + 1, ms->localFolderName,
+    	sizeof(int), (void *)&fd
+    	);
+
+	int ret_val = *(int *)ans.return_val;
+
+	if (ret_val == -1)
+		return ret_val;
+
+	// else
+	clientFD * tmp = clientFD_head;
+	clientFD * prev = NULL;
+	for(; tmp != NULL; tmp = tmp->next) {
+		if(tmp->fd == fd) {
+			if(tmp == clientFD_head) {
+				clientFD_head = tmp->next;
+				free(tmp);
+			}else {
+				prev->next = tmp->next;
+				free(tmp);
+			}
+		}
+		prev = tmp;
+	}
+
+    return ret_val;
 }
 
 int fsRead(int fd, void *buf, const unsigned int count) {
-    return(read(fd, buf, (size_t)count));
+#ifdef _DEBUG_1_
+	printf("fsRead():\n");
+#endif
+	uint32_t clientIP = getPublicIPAddr();
+
+	struct clientFD *cfd = getClientByFD(clientIP, fd);
+	struct mounted_servers *ms;
+	if(cfd != NULL) {
+		ms = getRemoteServer(cfd->localFolderName);
+	}
+#ifdef _DEBUG_1_
+	printf("MS: %s\n", ms->localFolderName); fflush(stdout);
+#endif
+	if( ms == NULL) {
+#ifdef _DEBUG_1_
+	printf("FS Open: Count not fetch remote server belonging to FSDIR * folder\n"); fflush(stdout);
+#endif
+		return -1;
+	}
+
+	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsRead_remote", 3,
+		sizeof(uint32_t), (void *)&clientIP,
+		strlen(ms->localFolderName) + 1, ms->localFolderName,
+		sizeof(int), (void *)&fd
+		);
+
+	return *(int *)ans.return_val;
+    //return(read(fd, buf, (size_t)count));
 }
 
 int fsWrite(int fd, const void *buf, const unsigned int count) {

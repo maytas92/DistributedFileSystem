@@ -33,6 +33,7 @@ int addClient(const uint32_t newIP, const char *folderName) {
 
 	new_client->next = client_head;
 	new_client->clientIP = newIP;
+	new_client->fileOpenHead = NULL;
 
 	new_client->localFolderName = (char *)malloc(sizeof(folderName));
 	strcpy(new_client->localFolderName, folderName);
@@ -72,6 +73,9 @@ int removeClient(const uint32_t ip, const char *folderName) {
 }
 
 struct client * getClient(const uint32_t ip, const char *folderName) {
+#ifdef _DEBUG_1_
+	printf("IP is %d and folderName is %s\n", ip, folderName); fflush(stdout);
+#endif
 	struct client *tmp;
 	for(tmp = client_head; tmp != NULL; tmp = tmp->next) {
 		if(tmp->clientIP == ip && !strcmp(tmp->localFolderName, folderName)) {
@@ -373,6 +377,174 @@ int mount_folder(const char *folderName) {
 	return 0;
 }
 
+return_type fsOpen_remote(const int nparams, arg_type * a) {
+#ifdef _DEBUG_1_
+	printf("FS Server: fsOpen\n"); fflush(stdout);
+#endif	
+	if(nparams != 4) {
+#ifdef _DEBUG_1_
+	printf("fsOpen_remote: Number of params incorrect\n"); fflush(stdout);
+#endif
+		errno = EINVAL;
+		r.return_size = 0;
+		r.return_val = NULL;
+		return r;
+	}
+
+	// get client side parameters
+	uint32_t clientIP = *(uint32_t *)a->arg_val;
+	char *localFolderName = (char *)a->next->arg_val;
+	char *fname = (char *)a->next->next->arg_val;
+	int mode = *(int *)a->next->next->next->arg_val;
+
+	// Server side path building 
+	char *tmpFolderName = malloc(strlen(fname) + 1);
+	strcpy(tmpFolderName, fname);
+	char *t = strtok(tmpFolderName, "/");
+	int init_len = -1;
+	int clientSideRootFolderSize = -1;
+
+	if(t == NULL) {
+		clientSideRootFolderSize = strlen(my_folder) + 1;
+		init_len = strlen(fname);
+#ifdef _DEBUG_1_
+	printf("Init len = %d\n", init_len);
+#endif
+	} else {
+		clientSideRootFolderSize = strlen(my_folder);
+		init_len = strlen(t);
+		clientSideRootFolderSize += strlen(fname) - init_len + 1;
+
+#ifdef _DEBUG_1_
+	printf("Init len = %d\n", init_len);
+#endif
+	}
+	
+#ifdef _DEBUG_1_
+	printf("Client side root folder size %d\n", clientSideRootFolderSize);
+#endif
+
+	char *serverSideFolderPath = malloc(clientSideRootFolderSize);
+	strcpy(serverSideFolderPath, my_folder);
+	strcat(serverSideFolderPath, fname + init_len);
+	//strncat(serverSideFolderPath, '\0');
+
+#ifdef _DEBUG_1_
+	printf("Server side folder path %s and %d\n", serverSideFolderPath, strlen(serverSideFolderPath));
+#endif
+
+#ifdef _DEBUG_1_
+	printf("FS open: Client side parameters set up %d %s %s %d\n", clientIP, localFolderName, fname, mode); fflush(stdout);
+#endif
+
+	struct client * curClient = getClient(clientIP, localFolderName);
+#ifdef _DEBUG_1_
+	printf("Got cur client\n");
+#endif
+	int *ret_int = (int *)malloc(sizeof(int));
+	// look through all open files for the client
+	fileOpen * tmp = curClient->fileOpenHead;
+#ifdef _DEBUG_1_
+	printf("FS Open: got client and file open head\n"); fflush(stdout);
+#endif
+
+	while(tmp != NULL) {
+		if(!strcmp(tmp->name, fname)) {
+			// file already open. TODO: check
+			*ret_int = -1;
+#ifdef _DEBUG_1_
+	printf("Setting ret int\n"); fflush(stdout);
+#endif
+			r.return_size = (void *)ret_int;
+			r.return_size = sizeof(int);
+
+			return r;
+		}
+		tmp = tmp->next;
+	}
+	// else
+	fileOpen * newFile = malloc(sizeof(fileOpen));
+	newFile->next = curClient->fileOpenHead;
+	newFile->mode = mode;
+	strncpy(newFile->name, fname, 256);
+
+	curClient->fileOpenHead = newFile;
+	
+	*ret_int = fsOpen(serverSideFolderPath, mode);
+	newFile->fd = *ret_int;
+
+#ifdef _DEBUG_1_
+	printf("The return value is %d\n", *ret_int);
+#endif
+	r.return_val = (void *)ret_int;
+	r.return_size = sizeof(int);
+
+	return r;
+}
+
+int fsOpen(const char *fname, int mode) {
+    int flags = -1;
+
+    if(mode == 0) {
+		flags = O_RDONLY;
+    }
+    else if(mode == 1) {
+		flags = O_WRONLY | O_CREAT;
+    }
+
+    return(open(fname, flags, S_IRWXU));
+}
+
+return_type fsClose_remote(const int nparams, arg_type *a) {
+#ifdef _DEBUG_1_
+	printf("FS Close remote:\n"); fflush(stdout);
+#endif
+	if(nparams != 3) {
+#ifdef _DEBUG_1_
+	printf("FS Close remote: Number of params incorrect\n"); fflush(stdout);
+#endif
+		r.return_size = 0;
+		r.return_val = NULL;
+		return r;
+	}
+
+	uint32_t clientIP = *(uint32_t *)a->arg_val;
+	char *localFolderName = (char *)a->next->arg_val;
+	int fd = *(int *)a->next->next->arg_val;
+
+	struct client * curClient = getClient(clientIP, localFolderName);
+
+	int *ret_int = (int *)malloc(sizeof(int));
+
+	fileOpen *tmp = curClient->fileOpenHead;
+	fileOpen *prev = NULL;
+#ifdef _DEBUG_1_
+	printf("start iterating\n"); fflush(stdout);
+#endif
+	for(; tmp != NULL; tmp = tmp->next) {
+		if(tmp->fd == fd) {
+			if(tmp == curClient->fileOpenHead) {
+				curClient->fileOpenHead = tmp->next;
+				free(tmp);
+			} else {
+				prev->next = tmp->next;
+				free(tmp);
+			}
+		}
+		prev = tmp;
+	}
+
+	*ret_int = 0; //fsClose(fd);
+
+	r.return_val = (void *)ret_int;
+	r.return_size = sizeof(int);
+
+	return r;
+}
+
+int fsClose(int fd) {
+    return(close(fd));
+}
 
 int main(int argc, char *argv[]) {
 	if(argc < 2) {
@@ -386,6 +558,8 @@ int main(int argc, char *argv[]) {
     register_procedure("fsReadDir_remote", 1, fsReadDir_remote);
     //register_procedure("fsCloseDir_remote", 2, fsCloseDir_remote);
     register_procedure("fsCloseDir_remote", 1, fsCloseDir_remote);
+    register_procedure("fsOpen_remote", 4, fsOpen_remote);
+    register_procedure("fsClose_remote", 3, fsClose_remote);
 
 #ifdef _DEBUG_1_
     printRegisteredProcedures();
