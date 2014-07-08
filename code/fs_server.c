@@ -88,6 +88,29 @@ struct client * getClient(const uint32_t ip, const char *folderName) {
 	return NULL;
 }
 
+char * buildServerSideFolderPath(char *fname) {
+	char *tmpFolderName = malloc(strlen(fname) + 1);
+	strcpy(tmpFolderName, fname);
+	char *t = strtok(tmpFolderName, "/");
+	int init_len = -1;
+	int clientSideRootFolderSize = -1;
+
+	if(t == NULL) {
+		clientSideRootFolderSize = strlen(my_folder) + 1;
+		init_len = strlen(fname);
+	} else {
+		clientSideRootFolderSize = strlen(my_folder);
+		init_len = strlen(t);
+		clientSideRootFolderSize += strlen(fname) - init_len + 1;
+	}
+
+	char *serverSideFolderPath = malloc(clientSideRootFolderSize);
+	strcpy(serverSideFolderPath, my_folder);
+	strcat(serverSideFolderPath, fname + init_len);
+
+	return serverSideFolderPath;
+}
+
 FSDIR * fsOpenDirectory(const char * folderName) {
 	return (opendir(folderName));
 }
@@ -184,43 +207,13 @@ return_type fsOpenDir_remote(const int nparams, arg_type* a) {
 	uint32_t clientWho = *(uint32_t *)a->next->arg_val;
 
 	// Build server side folder path
-	char *tmpFolderName = malloc(strlen(folderName) + 1);
-	strcpy(tmpFolderName, folderName);
-	char *t = strtok(tmpFolderName, "/");
-	int init_len = -1;
-	int clientSideRootFolderSize = -1;
-
-	if(t == NULL) {
-		clientSideRootFolderSize = strlen(my_folder) + 1;
-		init_len = strlen(folderName);
-#ifdef _DEBUG_1_
-	printf("Init len = %d\n", init_len);
-#endif
-	} else {
-		clientSideRootFolderSize = strlen(my_folder);
-		init_len = strlen(t);
-		clientSideRootFolderSize += strlen(folderName) - init_len + 1;
-
-#ifdef _DEBUG_1_
-	printf("Init len = %d\n", init_len);
-#endif
-	}
-	
-#ifdef _DEBUG_1_
-	printf("Client side root folder size %d\n", clientSideRootFolderSize);
-#endif
-
-	char *serverSideFolderPath = malloc(clientSideRootFolderSize);
-	strcpy(serverSideFolderPath, my_folder);
-	strcat(serverSideFolderPath, folderName + init_len);
-	//strncat(serverSideFolderPath, '\0');
+	char *serverSideFolderPath = buildServerSideFolderPath(folderName);
 
 #ifdef _DEBUG_1_
 	printf("Server side folder path %s and %d\n", serverSideFolderPath, strlen(serverSideFolderPath));
 #endif
 
 	// create local storage
-	//struct client * cWho = getClient(clientWho, folderName);
 	FSDIR *folderToOpen = malloc(sizeof(FSDIR));
 
 #ifdef _DEBUG_1_
@@ -231,40 +224,13 @@ return_type fsOpenDir_remote(const int nparams, arg_type* a) {
 	if(folderToOpen->dir == NULL) {
 		printf("NULL FD\n");
 	}
-	
-	//memcpy(&folderToOpen->who, cWho, sizeof(folderToOpen->who));
-#ifdef _DEBUG_1_
-	printf("Success in fsOpen directory\n");
-#endif
-	
-#ifdef _DEBUG_1_
-	printf("Read dir\n");
-#endif
-	//folderToOpenname = malloc(strlen(folderName) + 1);
 
 	strcpy(folderToOpen->name, folderName);
-#ifdef _DEBUG_1_
-	printf("String copy\n");
-#endif
-
-	//strcpy(fDir->d_name, folderName);
-	//fDir->d_type = DT_DIR; // folder
-	
-	//memcpy(&folderToOpen->entry, fDir, sizeof(*fDir));
-
-#ifdef _DEBUG_1_
-	//printf("Client info %s %d\n", folderToOpen->who.localFolderName, folderToOpen->who.clientIP);
-	//printf("Dirent info %s\n", folderToOpen->entry.d_name);
-#endif
 	
 #ifdef _DEBUG_1_
-	//  printf("fsOpenDir_remote: The directory opened is %s %s and entity Type %d\n", fDir->d_name, 
-	//	folderToOpen->entry.d_name, fDir->d_type);
 	printf("fsOpenDir_remote: The directory opened is %s\n", folderToOpen->name);
-	printf("fsOpenDir_remote: The pointer is %p\n", folderToOpen);
 #endif
 
-	//folderToOpen = malloc(sizeof(tmpFolder));
 	r.return_val = (void *)folderToOpen;
 	r.return_size = sizeof(*folderToOpen);
 
@@ -372,28 +338,7 @@ int mount_folder(const char *folderName) {
 // builds the server side folder path given the client side folder path
 // Note the folder path may be to subdirectory
 
-char * buildServerSideFolderPath(char *fname) {
-	char *tmpFolderName = malloc(strlen(fname) + 1);
-	strcpy(tmpFolderName, fname);
-	char *t = strtok(tmpFolderName, "/");
-	int init_len = -1;
-	int clientSideRootFolderSize = -1;
 
-	if(t == NULL) {
-		clientSideRootFolderSize = strlen(my_folder) + 1;
-		init_len = strlen(fname);
-	} else {
-		clientSideRootFolderSize = strlen(my_folder);
-		init_len = strlen(t);
-		clientSideRootFolderSize += strlen(fname) - init_len + 1;
-	}
-
-	char *serverSideFolderPath = malloc(clientSideRootFolderSize);
-	strcpy(serverSideFolderPath, my_folder);
-	strcat(serverSideFolderPath, fname + init_len);
-
-	return serverSideFolderPath;
-}
 
 return_type fsOpen_remote(const int nparams, arg_type * a) {
 #ifdef _DEBUG_1_
