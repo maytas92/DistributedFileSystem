@@ -15,7 +15,7 @@
 #define _DEBUG_1_
 #endif
 
-#if 1
+#if 0
 #define _DEBUG_2_
 #endif
 
@@ -62,8 +62,6 @@ void addMountedServer(const char * srvIpOrDomName, int srvPort, const char * loc
 
 #ifdef _DEBUG_2_
 	printf("The mounted server name is %s\n", ms->srvIpOrDomName);
-	//printf("The mounted server length is %d which should match %d or %d\n", strlen(srvIpOrDomName) + 1, 
-	//	sizeof(ms->srvIpOrDomName), strlen(ms->srvIpOrDomName) + 1);
 #endif
 	ms->srvPort = srvPort;
 
@@ -126,18 +124,13 @@ int removeMountedServer(const char *localFolderName) {
 	// so we iterate through the linked list of mounted servers
 	struct mounted_servers *prev = ms_head;
 	for(tmp = ms_head->next; tmp != NULL; tmp = tmp->next, prev = tmp) {
-#ifdef _DEBUG_2_
-	printf("fsUnMount: tmp->localFolderName %s\n", tmp->localFolderName);
-	printf("fsUnMount: localFolderName Input %s\n", localFolderName);
-#endif
+
 		if( !strcmp(tmp->localFolderName, localFolderName) ) {
 			num_mounted_servers--;
 			prev->next = tmp->next;
 			// TODO: Into a function
 			freeMountedServer(tmp);
-#ifdef _DEBUG_2_
-	printf("fsUnMount: Unmounting %s\n", localFolderName); fflush(stdout);
-#endif			
+		
 			return 0;
 		}
 	}
@@ -192,10 +185,7 @@ int fsUnMount(const char *localFolderName) {
 #endif
 		return -1;		
 	}
-#ifdef _DEBUG_1_
-	//printf("Size of rem_server->localFolderName is %d\n", sizeof(rem_server->localFolderName));
-	//printf("And its value is %s\n", rem_server->localFolderName);
-#endif
+
 	ans = make_remote_call(rem_server->srvIpOrDomName, rem_server->srvPort, "fsUnMount_remote", 2, 
 			strlen(rem_server->localFolderName) + 1, rem_server->localFolderName,
 			sizeof(clientIP), (void *)&clientIP);
@@ -324,20 +314,13 @@ int fsOpen(const char *fname, int mode) {
 
     int fd = *(int *)ans.return_val;
 
-#ifdef _DEBUG_1_
-    printf("FD id %d\n", fd);
-#endif
     clientFD *newFD = malloc(sizeof(clientFD));
     newFD->fd = fd;
     newFD->ip = clientIP;
     newFD->next = clientFD_head;
-#ifdef _DEBUG_1_
-    printf("assigning values done\n");
-#endif
+
     strcpy(newFD->localFolderName, localFolderName);
-#ifdef _DEBUG_1_
-    printf("copied values\n");
-#endif
+
     clientFD_head = newFD;
 
     return fd;
@@ -356,6 +339,23 @@ struct clientFD * getClientByFD(const uint32_t ip, const int fd) {
 	printf("Unable to find client on the server side with ip %d and fd %d\n", ip, fd); fflush(stdout);
 #endif
 	return NULL;
+}
+
+void freeClientFD(int fd) {
+	clientFD * tmp = clientFD_head;
+	clientFD * prev = NULL;
+	for(; tmp != NULL; tmp = tmp->next) {
+		if(tmp->fd == fd) {
+			if(tmp == clientFD_head) {
+				clientFD_head = tmp->next;
+				free(tmp);
+			}else {
+				prev->next = tmp->next;
+				free(tmp);
+			}
+		}
+		prev = tmp;
+	}
 }
 
 int fsClose(int fd) {
@@ -390,21 +390,7 @@ int fsClose(int fd) {
 	if (ret_val == -1)
 		return ret_val;
 
-	// else
-	clientFD * tmp = clientFD_head;
-	clientFD * prev = NULL;
-	for(; tmp != NULL; tmp = tmp->next) {
-		if(tmp->fd == fd) {
-			if(tmp == clientFD_head) {
-				clientFD_head = tmp->next;
-				free(tmp);
-			}else {
-				prev->next = tmp->next;
-				free(tmp);
-			}
-		}
-		prev = tmp;
-	}
+	freeClientFD(fd);
 
     return ret_val;
 }
@@ -430,18 +416,45 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 		return -1;
 	}
 
-	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsRead_remote", 3,
+	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsRead_remote", 4,	
 		sizeof(uint32_t), (void *)&clientIP,
 		strlen(ms->localFolderName) + 1, ms->localFolderName,
-		sizeof(int), (void *)&fd
+		sizeof(int), (void *)&fd,
+		sizeof(int), count
 		);
 
 	return *(int *)ans.return_val;
-    //return(read(fd, buf, (size_t)count));
 }
 
 int fsWrite(int fd, const void *buf, const unsigned int count) {
-    return(write(fd, buf, (size_t)count)); 
+#ifdef _DEBUG_1
+	printf("fsWrite():\n");
+#endif
+	uint32_t clientIP = getPublicIPAddr();
+
+	struct clientFD *cfd = getClientByFD(clientIP, fd);
+	struct mounted_servers *ms;
+	if(cfd != NULL) {
+		ms = getRemoteServer(cfd->localFolderName);
+	}
+#ifdef _DEBUG_1_
+	printf("MS: %s\n", ms->localFolderName); fflush(stdout);
+#endif
+	if(ms == NULL) {
+#ifdef _DEBUG_1_
+	printf("FS Write: Could not fetch the remote server belonging to FSDIR * folder\n"); fflush(stdout);
+#endif
+		return -1;
+	}
+
+	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsWrite_remote", 4,
+		sizeof(uint32_t), (void *)&clientIP,
+		strlen(ms->localFolderName) + 1, ms->localFolderName,
+		sizeof(int), (void *)&fd,
+		sizeof(int), count
+		);
+    
+    return *(int *)ans.return_val;
 }
 
 int fsRemove(const char *name) {
