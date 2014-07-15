@@ -40,6 +40,8 @@ struct mounted_servers * getRemoteServer(const char * folderName) {
 	struct mounted_servers *tmp;
 	for(tmp = ms_head; tmp != NULL; tmp = tmp->next) {
 		if( !strcmp(tmp->localFolderName, folderName) ) {
+
+			printf("Found remote server\n");
 			return tmp;
 		}
 	}
@@ -240,11 +242,18 @@ int fsCloseDir(FSDIR *folder) {
 #endif
 	// http://pubs.opengroup.org/onlinepubs/7908799/xsh/dirent.h.html
 	char *folderName = folder->name;
+	char * tmpFolderName = malloc(strlen(folderName) + 1);
+	strcpy(tmpFolderName, folderName);
+	char *localFolderName = strtok(tmpFolderName, "/");
+	if(localFolderName == NULL) {
+		strcpy(localFolderName, folderName);
+	}
+
 #ifdef _DEBUG_1_
 	printf("FS Close Dir %s:\n", folderName); fflush(stdout);
 #endif
 	
-	struct mounted_servers *rem_server = getRemoteServer(folderName);
+	struct mounted_servers *rem_server = getRemoteServer(localFolderName);
 	if( rem_server == NULL) {
 #ifdef _DEBUG_1_
 	printf("FS Close Dir: Count not fetch remote server belonging to FSDIR * folder\n"); fflush(stdout);
@@ -262,13 +271,18 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     const int initErrno = errno;
     
     char *folderName = folder->name;
-    //struct dirent *d = readdir(folder);
-    //char *folderName = d->d_name;
+    char * tmpFolderName = malloc(strlen(folderName) + 1);
+	strcpy(tmpFolderName, folderName);
+	char *localFolderName = strtok(tmpFolderName, "/");
+	if(localFolderName == NULL) {
+		strcpy(localFolderName, folderName);
+	}
+
 #ifdef _DEBUG_1_
     printf("FS Read Dir: The foldername is %s\n", folderName);
 #endif
 
-    struct mounted_servers* rem_server = getRemoteServer(folderName);
+    struct mounted_servers* rem_server = getRemoteServer(localFolderName);
 	if( rem_server == NULL) {
 #ifdef _DEBUG_1_
 	printf("FS Read Dir: Could not fetch remote server belonging to folder name\n"); fflush(stdout);
@@ -434,12 +448,12 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 	printf("num bytes read: %d, errNo %d and buf %s\n", numBytesRead, errNo, serverBuf);
 #endif
 
-	return errNo;
+	return numBytesRead;
 }
 
 int fsWrite(int fd, const void *buf, const unsigned int count) {
 #ifdef _DEBUG_1
-	printf("fsWrite():\n");
+	printf("fsWrite():\n"); fflush(stdout);
 #endif
 	uint32_t clientIP = getPublicIPAddr();
 
@@ -460,14 +474,64 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
 
 	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsWrite_remote", 4,
 		sizeof(uint32_t), (void *)&clientIP,
-		strlen(ms->localFolderName) + 1, ms->localFolderName,
 		sizeof(int), (void *)&fd,
-		sizeof(int), count
+		sizeof(int), (void *)&count,
+		strlen(buf) + 1, buf
 		);
     
-    return *(int *)ans.return_val;
+    char *serverBuf =(char *)ans.return_val;
+    int numBytesWritten = *(int *)serverBuf;
+    serverBuf += sizeof(numBytesWritten);
+    int errNo = *(int *)serverBuf;
+
+#ifdef _DEBUG_1_
+    printf("num bytes written %d, errno %d\n", numBytesWritten, errNo);
+#endif
+
+    return numBytesWritten;
 }
 
 int fsRemove(const char *name) {
-    return(remove(name));
+#ifdef _DEBUG_1_
+	printf("fsRemove():\n"); fflush(stdout);
+#endif
+
+	uint32_t clientIP = getPublicIPAddr();
+
+	char * tmpFName = malloc(strlen(name) + 1);
+	strcpy(tmpFName, name);
+	char *localFolderName = strtok(tmpFName, "/");
+
+	// should never be executed ideally, more of a safety net
+	if(localFolderName == NULL) {
+		strcpy(localFolderName, name);
+	}
+#ifdef _DEBUG_1_
+    printf("FS REmove: The foldername is %s\n", localFolderName);
+#endif
+
+
+	struct mounted_servers *ms = getRemoteServer(localFolderName);
+	if( ms == NULL) {
+#ifdef _DEBUG_1_
+	printf("FS Remove: Count not fetch remote server belonging to FSDIR * folder\n"); fflush(stdout);
+#endif
+		return -1;
+	}
+
+	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsRemove_remote", 2,
+		sizeof(uint32_t), (void *)&clientIP,
+		strlen(name) + 1, (void *)name
+		);
+
+    char *serverBuf = (char *)ans.return_val;
+    int retVal = *(int *)serverBuf;
+    serverBuf += sizeof(retVal);
+    int errNo = *(int *)serverBuf;
+
+#ifdef _DEBUG_1_
+    printf("FS Remove: errno %d return val %d\n", errNo, retVal);
+#endif
+
+    return retVal;
 }

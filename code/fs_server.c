@@ -367,6 +367,7 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 	while(tmp != NULL) {
 		if(!strcmp(tmp->name, fname)) {
 			// file already open. TODO: check
+			printf("File already open on the server side\n");
 			*ret_int = -1;
 			r.return_size = (void *)ret_int;
 			r.return_size = sizeof(int);
@@ -385,6 +386,9 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 	curClient->fileOpenHead = newFile;
 	
 	*ret_int = fsOpen(serverSideFolderPath, mode);
+#ifdef _DEBUG_1_
+	printf("ret int is %d\n", *ret_int);
+#endif
 	newFile->fd = *ret_int;
 
 #ifdef _DEBUG_1_
@@ -418,13 +422,17 @@ void freeOpenClient(int fd, struct client *curClient) {
 			if(tmp == curClient->fileOpenHead) {
 				curClient->fileOpenHead = tmp->next;
 				free(tmp);
+				printf("head"); fflush(stdout);
 			} else {
 				prev->next = tmp->next;
 				free(tmp);
+				printf("non head"); fflush(stdout);
 			}
 			break;
 		}
+		printf("update"); fflush(stdout);
 		prev = tmp;
+
 	}
 }
 
@@ -509,6 +517,7 @@ return_type fsRead_remote(const int nparams, arg_type *a) {
 	r.return_size = bufSize;
 
 #ifdef _DEBUG_1_
+	printf("In read FD %d\n", fd);
 	printf("Return size: %d\n", r.return_size); fflush(stdout);
 	printf("Return val is %s\n", buf); fflush(stdout);
 #endif
@@ -518,6 +527,104 @@ return_type fsRead_remote(const int nparams, arg_type *a) {
 
 int fsRead(int fd, void *buf, const unsigned int count) {
     return(read(fd, buf, (size_t)count));
+}
+
+return_type fsWrite_remote(const int nparams, arg_type *a) {
+#ifdef _DEBUG_1_
+	printf("fsWrite_remote: ()\n"); fflush(stdout);
+#endif
+	if(nparams != 4) {
+#ifdef _DEBUG_1_
+	printf("fsWrite_remote: Number of parameters incorret\n"); fflush(stdout);
+#endif
+		r.return_size = 0;
+		r.return_val = NULL;
+		return r;
+	}	
+
+	uint32_t clientIP = *(uint32_t *)a->arg_val;
+	a = a->next;
+	int fd = *(int *)a->arg_val;
+	a = a->next;
+	int count = *(int *)a->arg_val;
+	a = a->next;
+	char *bufToWrite = (char *)a->arg_val;
+
+	int numBytesWritten;
+	int errNo;
+	int serverBufSize = sizeof(numBytesWritten) + sizeof(errNo);
+	char *serverBuf = malloc(serverBufSize);
+	char *tmpServerBuf = serverBuf;
+
+	// to check if fd is open first
+	// TODO
+	printf("FD is %d, buftowrite is %s and count is %d\n", fd, bufToWrite, count);
+
+	numBytesWritten = fsWrite(fd, bufToWrite, count);
+#ifdef _DEBUG_1_
+	printf("Num bytes written %d\n", numBytesWritten);
+#endif
+	*(int *)tmpServerBuf = numBytesWritten;
+
+	tmpServerBuf += sizeof(numBytesWritten);
+	*(int *)tmpServerBuf = errno;
+#ifdef _DEBUG_1_
+	printf("Err no is %d\n", errno);
+#endif
+	
+#ifdef _DEBUG_1_
+	printf("return val %s and return size %d\n", serverBuf, serverBufSize);
+#endif
+	r.return_val = (void *)serverBuf;
+	r.return_size = serverBufSize;
+
+	return r;
+}
+
+int fsWrite(int fd, const void *buf, const unsigned int count) {
+    return(write(fd, buf, (size_t)count)); 
+}
+
+return_type fsRemove_remote(const int nparams, arg_type *a) {
+#ifdef _DEBUG_1_
+	printf("fsRemove_remote: ()\n"); fflush(stdout);
+#endif
+	if(nparams != 2) {
+#ifdef _DEBUG_1_
+	printf("fsRemove_remote: Number of parameters incorret\n"); fflush(stdout);
+#endif
+		r.return_size = 0;
+		r.return_val = NULL;
+		return r;
+	}	
+
+	uint32_t clientIP = a->arg_val;
+	a = a->next;
+	char *dirName = a->arg_val;
+	char *serverDirName = buildServerSideFolderPath(dirName);
+	
+	int errNo;
+	int retVal;
+	int serverBufSize = sizeof(errNo) + sizeof(retVal);
+
+	char *serverBuf = malloc(serverBufSize);
+	char *tmpServerBuf = serverBuf;
+	
+	retVal = fsRemove(serverDirName);	
+#ifdef _DEBUG_1_
+	printf("return value in fs remove () is %d\n", retVal);
+#endif
+	*(int *)tmpServerBuf = retVal;
+	tmpServerBuf += sizeof(retVal);
+
+	r.return_val = (void *)serverBuf;
+	r.return_size = serverBufSize;
+
+	return r;
+}
+
+int fsRemove(const char *name) {
+    return(remove(name));
 }
 
 int main(int argc, char *argv[]) {
@@ -534,6 +641,8 @@ int main(int argc, char *argv[]) {
     register_procedure("fsOpen_remote", 4, fsOpen_remote);
     register_procedure("fsClose_remote", 3, fsClose_remote);
     register_procedure("fsRead_remote", 4, fsRead_remote);
+    register_procedure("fsWrite_remote", 4, fsWrite_remote);
+    register_procedure("fsRemove_remote", 2, fsRemove_remote);
 
 #ifdef _DEBUG_1_
     printRegisteredProcedures();

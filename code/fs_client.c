@@ -40,12 +40,10 @@ int main(int argc, char *argv[]) {
         printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
     }
 
-    printf("Closing folder %s with return code %d\n", dirname, fsCloseDir(fd));
-
-    char *toOpen = malloc(strlen(dirname) + 1 + strlen("client_api.c") + 1);
+    char *toOpen = malloc(strlen(dirname) + 1 + strlen("test.txt") + 1);
     strcpy(toOpen, dirname);
     strcat(toOpen, "/");
-    strcat(toOpen, "client_api.c");
+    strcat(toOpen, "test.txt");
     printf("opening file %s\n", toOpen);
 
     int ff = fsOpen(toOpen, 0);
@@ -54,12 +52,30 @@ int main(int argc, char *argv[]) {
     }
     else printf("fsOpen(): %d\n", ff);
 
+
     char fname[15];
     if(fsRead(ff, (void *)fname, 10) < 0) {
         perror("fsRead"); exit(1);
     }
 
     printf("fsClose(): %d\n", fsClose(ff));
+
+    ff = fsOpen(toOpen, 1);
+    if(ff < 0) {
+        perror("fsOpen"); exit(1);
+    }
+    else printf("fsOpen(): %d\n", ff);
+
+    char *buf = "abc";
+    if(fsWrite(ff, buf, strlen(buf)) < strlen(buf)) {
+    fprintf(stderr, "fsWrite() wrote fewer than 3\n");
+    }
+
+    printf("fsClose(): %d\n", fsClose(ff));
+
+    printf("fsRemove(%s): %d\n", toOpen, fsRemove(toOpen));
+
+    printf("Closing folder %s with return code %d\n", dirname, fsCloseDir(fd));
 
     printf("fsUnMount(): UnMounting %s with result %d\n", dirname, fsUnMount(dirname));
 
