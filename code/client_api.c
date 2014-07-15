@@ -397,7 +397,7 @@ int fsClose(int fd) {
 
 int fsRead(int fd, void *buf, const unsigned int count) {
 #ifdef _DEBUG_1_
-	printf("fsRead():\n");
+	printf("fsRead():\n"); fflush(stdout);
 #endif
 	uint32_t clientIP = getPublicIPAddr();
 
@@ -420,10 +420,21 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 		sizeof(uint32_t), (void *)&clientIP,
 		strlen(ms->localFolderName) + 1, ms->localFolderName,
 		sizeof(int), (void *)&fd,
-		sizeof(int), count
+		sizeof(int), &count
 		);
 
-	return *(int *)ans.return_val;
+	char *serverBuf = (char *)ans.return_val;
+	int numBytesRead = *(int *)serverBuf;
+	serverBuf += sizeof(numBytesRead);
+	int errNo = *(int *)serverBuf;
+	serverBuf += sizeof(errNo);
+
+	buf = serverBuf;
+#ifdef _DEBUG_1_
+	printf("num bytes read: %d, errNo %d and buf %s\n", numBytesRead, errNo, serverBuf);
+#endif
+
+	return errNo;
 }
 
 int fsWrite(int fd, const void *buf, const unsigned int count) {

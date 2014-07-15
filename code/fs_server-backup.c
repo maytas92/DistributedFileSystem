@@ -509,8 +509,10 @@ return_type fsClose_remote(const int nparams, arg_type *a) {
 	}
 
 	uint32_t clientIP = *(uint32_t *)a->arg_val;
-	char *localFolderName = (char *)a->next->arg_val;
-	int fd = *(int *)a->next->next->arg_val;
+	a = a->next;
+	char *localFolderName = (char *)a->>arg_val;
+	a = a->next;
+	int fd = *(int *)a->arg_val;
 
 	struct client * curClient = getClient(clientIP, localFolderName);
 

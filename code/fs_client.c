@@ -6,10 +6,6 @@
 
 int main(int argc, char *argv[]) {
     char *dirname = NULL;
-    // TODO: Satyam please get rid of this.
-    // For the reader, the point of this is to simple test mounting 
-    // of two directories
-    char *mount_test = "tmp2";
 
     if(argc < 4) {
         printf("usage: dirName serverIpOrName serverPort\n" );
@@ -21,18 +17,20 @@ int main(int argc, char *argv[]) {
     }
 
     printf("fsUnMount(): Unmounting %s with result %d\n", dirname, fsUnMount(dirname));
-    printf("fsUnMount(): Unmouunting %s with result %d\n", mount_test, fsUnMount(mount_test));
 
     printf("fsMount(): Directory %s with result %d\n", dirname, fsMount(argv[2], atoi(argv[3]), dirname));
-    printf("fsMount(): Directory %s with result %d\n", mount_test, fsMount(argv[2], atoi(argv[3]), mount_test));
     
     printf("fsUnMount(): Unmounting %s with result %d\n", dirname, fsUnMount(dirname));
-    printf("fsUnMount(): Unmounting %s with result %d\n", mount_test, fsUnMount(mount_test));
 
     printf("fsMount(): Mounting %s with result %d\n", dirname, fsMount(argv[2], atoi(argv[3]), dirname));
 
-    char * openDir = "tmp1";
-    FSDIR *fd = fsOpenDir(openDir);
+    char *toOpenDir = malloc(strlen(dirname) + 1 + strlen(".") + 1);
+    strcpy(toOpenDir, dirname);
+    strcat(toOpenDir, "/");
+    strcat(toOpenDir, ".");
+    printf("Opening dir %s\n", toOpenDir);
+
+    FSDIR *fd = fsOpenDir(toOpenDir);
     if(fd == NULL) {
         perror("fsOpenDir"); exit(1);
     }
@@ -44,11 +42,22 @@ int main(int argc, char *argv[]) {
 
     printf("Closing folder %s with return code %d\n", dirname, fsCloseDir(fd));
 
-    int ff = fsOpen("tmp1/test.txt", 0);
+    char *toOpen = malloc(strlen(dirname) + 1 + strlen("client_api.c") + 1);
+    strcpy(toOpen, dirname);
+    strcat(toOpen, "/");
+    strcat(toOpen, "client_api.c");
+    printf("opening file %s\n", toOpen);
+
+    int ff = fsOpen(toOpen, 0);
     if(ff < 0) {
-    perror("fsOpen"); exit(1);
+        perror("fsOpen"); exit(1);
     }
     else printf("fsOpen(): %d\n", ff);
+
+    char fname[15];
+    if(fsRead(ff, (void *)fname, 10) < 0) {
+        perror("fsRead"); exit(1);
+    }
 
     printf("fsClose(): %d\n", fsClose(ff));
 

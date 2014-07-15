@@ -88,6 +88,8 @@ struct client * getClient(const uint32_t ip, const char *folderName) {
 	return NULL;
 }
 
+// builds the server side folder path given the client side folder path
+// Note the folder path may be to subdirectory
 char * buildServerSideFolderPath(char *fname) {
 	char *tmpFolderName = malloc(strlen(fname) + 1);
 	strcpy(tmpFolderName, fname);
@@ -273,14 +275,9 @@ return_type fsReadDir_remote(const int nparams, arg_type* a) {
 }
 
 struct fsDirent *fsReadDir(FSDIR *folder) {
-#ifdef _DEBUG_1_
-	printf("Here\n"); fflush(stdout);
-#endif
     const int initErrno = errno;
     struct dirent *d = readdir(folder->dir);
-#ifdef _DEBUG_1_
-    printf("read\n"); fflush(stdout);
-#endif
+
     if(d == NULL) {
 	if(errno == initErrno) errno = 0;
 	return NULL;
@@ -328,16 +325,6 @@ return_type fsCloseDir_remote(const int nparams, arg_type* a) {
 
 	return r;
 }
-
-
-int mount_folder(const char *folderName) {
-	struct stat sbuf;
-
-	return 0;
-}
-// builds the server side folder path given the client side folder path
-// Note the folder path may be to subdirectory
-
 
 
 return_type fsOpen_remote(const int nparams, arg_type * a) {
@@ -435,6 +422,7 @@ void freeOpenClient(int fd, struct client *curClient) {
 				prev->next = tmp->next;
 				free(tmp);
 			}
+			break;
 		}
 		prev = tmp;
 	}
@@ -481,11 +469,11 @@ int fsClose(int fd) {
 
 return_type fsRead_remote(const int nparams, arg_type *a) {
 #ifdef _DEBUG_1_
-	printf("fsRead_remote: ()\n");
+	printf("fsRead_remote: ()\n"); fflush(stdout);
 #endif
 	if(nparams != 4) {
 #ifdef _DEBUG_1_
-	printf("fsRead_remote: Number of parameters incorret\n");
+	printf("fsRead_remote: Number of parameters incorret\n"); fflush(stdout);
 #endif
 		r.return_size = 0;
 		r.return_val = NULL;
@@ -493,17 +481,37 @@ return_type fsRead_remote(const int nparams, arg_type *a) {
 	}
 
 	uint32_t clientIP = *(uint32_t *)a->arg_val;
-	char *localFolderName = (char *)a->next->arg_val;
-	int fd = *(int *)a->next->next->arg_val;
-	int count = *(int *)a->next->next->next->arg_val;
+	a = a->next;
+	char *localFolderName = (char *)a->arg_val;
+	a = a->next;
+	int fd = *(int *)a->arg_val;
+	a = a->next;
+	int count = *(int *)a->arg_val;
 
-	char *buf = malloc(count);
+	int errCode;
+	int numBytesRead;
+	int bufMetaDataSize = sizeof(numBytesRead) + sizeof(errCode);
+	int bufSize =  bufMetaDataSize + sizeof(count);
 
-	int *ret_int = *(int *)malloc(sizeof(int));
-	*ret_int = fsRead(fd, buf, count);
+	char *buf = malloc(bufSize);
+	char *tmpBuf = buf;
 
-	r.return_val = (void *)ret_int;
-	r.return_size = sizeof(int);
+	numBytesRead = fsRead(fd, buf + bufMetaDataSize, count);
+	*(int *)tmpBuf = numBytesRead;
+	tmpBuf += sizeof(int);
+	*((int *)tmpBuf) = errno;
+	tmpBuf += sizeof(int);
+
+	tmpBuf += numBytesRead;
+	*(char *)tmpBuf = '\0';
+
+	r.return_val = (void *)(buf);
+	r.return_size = bufSize;
+
+#ifdef _DEBUG_1_
+	printf("Return size: %d\n", r.return_size); fflush(stdout);
+	printf("Return val is %s\n", buf); fflush(stdout);
+#endif
 
 	return r;
 }
