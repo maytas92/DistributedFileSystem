@@ -64,34 +64,34 @@ int main(int argc, char *argv[]) {
     strcat(toOpen, "test.txt");
     printf("opening file test.txt in read mode %s\n", toOpen);
 
-    int ff = fsOpen(toOpen, 0);
+    int ff = fsOpen(toOpen, 1);
     if(ff < 0) {
         perror("fsOpen"); exit(1);
     }
     else printf("fsOpen(): %d\n", ff);
 
     usleep(10000000);
-
+    /*
     char fname[15];
     if(fsRead(ff, (void *)fname, 10) < 0) {
         perror("fsRead"); exit(1);
     }
 
     printf("fsClose(): %d\n", fsClose(ff));
-    /*
+    
     ff = fsOpen(toOpen, 1);
     if(ff < 0) {
         perror("fsOpen"); exit(1);
     }
     else printf("fsOpen(): %d\n", ff);
-
+    */
     char *buf = "abcd";
     if(fsWrite(ff, buf, strlen(buf)) < strlen(buf)) {
         fprintf(stderr, "fsWrite() wrote fewer than 4\n");
     }
 
     printf("fsClose(): %s %d\n", toOpen, fsClose(ff));
-    */
+    
     /*
     char *toOpen2 = malloc(strlen(dirname) + 1 + strlen("test2.txt") + 1);
     strcpy(toOpen2, dirname);

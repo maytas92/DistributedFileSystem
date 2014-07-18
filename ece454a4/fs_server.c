@@ -426,7 +426,11 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 		tmpServerPath = tmpServerPath->next;
 	}
 
-	
+	// client wishes to write to the file
+	if(mode == 1) {
+		// remove the file so that it can be created and overwritten
+		fsRemove(serverSideFolderPath);
+	}
 	// else
 	fileOpen * newFile = malloc(sizeof(fileOpen));
 	newFile->next = curClient->fileOpenHead;

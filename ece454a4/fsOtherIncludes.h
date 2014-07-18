@@ -47,8 +47,6 @@ typedef struct FSDIR {
 	// TODO: Fix this
 	char name[256]; 
 	int errNo;
-	//struct dirent entry;
-	//struct client who;
 }FSDIR;
 
 /* 

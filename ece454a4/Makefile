@@ -1,7 +1,7 @@
 OBJECTS := $(patsubst %.c,%.o,$(wildcard *.c))
 
 fs_client: fs_client.o client_api.o
-	gcc fs_client.o client_api.o simplified_rpc/libstubs.a -o client
+	gcc fs_client.o client_api.o simplified_rpc/libstubs.a -o fs_client
 
 client2: fs_client2.o client_api.o
 	gcc fs_client2.o client_api.o simplified_rpc/libstubs.a -o client2
