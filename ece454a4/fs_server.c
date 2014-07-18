@@ -6,7 +6,7 @@
 #include "ece454_fs.h"
 #include <stdint.h>
 
-#if 1
+#if 0
 #define _DEBUG_1_
 #endif
 
@@ -18,6 +18,8 @@ extern printRegisteredProcedures();
 char *my_folder;
 
 struct client * client_head = NULL;
+
+struct fileOpenServerPath * open_server_path_head = NULL;
 
 struct fsDirent dent;
 
@@ -114,9 +116,9 @@ char * buildServerSideFolderPath(char *fname) {
 }
 
 FSDIR * fsOpenDirectory(const char * folderName) {
+	errno = 0;
 	return (opendir(folderName));
 }
-
 
 return_type fsMount_remote(const int nparams, arg_type* a) {
 #ifdef _DEBUG_1_
@@ -223,6 +225,7 @@ return_type fsOpenDir_remote(const int nparams, arg_type* a) {
 #endif
 
 	folderToOpen->dir = fsOpenDirectory(serverSideFolderPath);
+	folderToOpen->errNo = errno;
 	if(folderToOpen->dir == NULL) {
 		printf("NULL FD\n");
 	}
@@ -262,7 +265,6 @@ return_type fsReadDir_remote(const int nparams, arg_type* a) {
 
 	struct fsDirent *curRead = fsReadDir(fDir);
 	if(curRead == NULL) {
-		// TODO: set errno flag
 		r.return_size = 0;
 		r.return_val = NULL;
 		return r;
@@ -276,6 +278,7 @@ return_type fsReadDir_remote(const int nparams, arg_type* a) {
 
 struct fsDirent *fsReadDir(FSDIR *folder) {
     const int initErrno = errno;
+    errno = 0;
     struct dirent *d = readdir(folder->dir);
 
     if(d == NULL) {
@@ -317,11 +320,23 @@ return_type fsCloseDir_remote(const int nparams, arg_type* a) {
 		return r;
 	}
 	FSDIR * curDir = (FSDIR *)a->arg_val;
-	int *close_ret_int = (int *)malloc(sizeof(int));
-	*close_ret_int = closedir(curDir->dir);
 
-	r.return_val = (void *)close_ret_int;
-	r.return_size = sizeof(int);
+	int errNo;
+	int retVal;
+	int serverBufSize = sizeof(errNo) + sizeof(retVal);
+
+	char *serverBuf = malloc(serverBufSize);
+	char *tmpServerBuf = serverBuf;
+
+	errno = 0;
+	retVal = closedir(curDir->dir);
+	*(int *)tmpServerBuf = retVal;
+	tmpServerBuf += sizeof(retVal);
+	// set error code
+	*(int *)tmpServerBuf = errno;
+
+	r.return_val = (void *)serverBuf;
+	r.return_size = serverBufSize;
 
 	return r;
 }
@@ -360,23 +375,58 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 
 	struct client * curClient = getClient(clientIP, localFolderName);
 
-	int *ret_int = (int *)malloc(sizeof(int));
+	int errNo;
+	int retVal;
+	int serverBufSize = sizeof(errNo) + sizeof(retVal);
+
+	char *serverBuf = malloc(serverBufSize);
+	char *tmpServerBuf = serverBuf;
+
 	// look through all open files for the client
 	fileOpen * tmp = curClient->fileOpenHead;
 
+	/* This is to check if the SAME client tries to open the same 
+	*  file name twice we return -1.  
+	*/
 	while(tmp != NULL) {
 		if(!strcmp(tmp->name, fname)) {
 			// file already open. TODO: check
 			printf("File already open on the server side\n");
-			*ret_int = -1;
-			r.return_size = (void *)ret_int;
-			r.return_size = sizeof(int);
+			*(int *)tmpServerBuf = -1;
+			tmpServerBuf += sizeof(retVal);
+			// set error code
+			*(int *)tmpServerBuf = -1;
+
+			r.return_val = (void *)serverBuf;
+			r.return_size = serverBufSize;
 
 			return r;
 		}
 		tmp = tmp->next;
 	}
 
+	/* This is to check if a different client tries to open the same
+	*  file name that is already open from another client.
+	*/
+	fileOpenServerPath *tmpServerPath = open_server_path_head;
+	while(tmpServerPath != NULL) {
+		if(!strcmp(tmpServerPath->name, serverSideFolderPath)) {
+			printf("File already open by another client\n");
+			// TODO: Add some wait some message to inform the client
+			*(int *)tmpServerBuf = -100;
+			tmpServerBuf += sizeof(retVal);
+			// set error code
+			*(int *)tmpServerBuf = errno;
+
+			r.return_val = (void *)serverBuf;
+			r.return_size = serverBufSize;
+
+			return r;
+		}
+		tmpServerPath = tmpServerPath->next;
+	}
+
+	
 	// else
 	fileOpen * newFile = malloc(sizeof(fileOpen));
 	newFile->next = curClient->fileOpenHead;
@@ -385,22 +435,41 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 
 	curClient->fileOpenHead = newFile;
 	
-	*ret_int = fsOpen(serverSideFolderPath, mode);
-#ifdef _DEBUG_1_
-	printf("ret int is %d\n", *ret_int);
-#endif
-	newFile->fd = *ret_int;
+	retVal = fsOpen(serverSideFolderPath, mode);
 
+	// If the client was able to successfully open this file
+	// then add this open file to a linked list
+	// so that in the future we do not allow re-opening
+	// of this file by another client.
+	if(retVal > 0) {
+		/*
+		* To keep track of open files on the server from ALL clients
+		*/
+		printf("Got here! This means that the server file path was added %s\n", serverSideFolderPath);
+
+		fileOpenServerPath *new_server_file_path = malloc(sizeof(fileOpenServerPath));
+		strcpy(new_server_file_path->name, serverSideFolderPath);
+		new_server_file_path->fd = retVal;
+		new_server_file_path->next = open_server_path_head;
+		open_server_path_head = new_server_file_path;
+	}
+	*(int *)tmpServerBuf = retVal;
+	tmpServerBuf += sizeof(retVal);
+	// set error code
+	*(int *)tmpServerBuf = errno;
+
+	newFile->fd = retVal;
 #ifdef _DEBUG_1_
-	printf("The return value is %d\n", *ret_int);
+	printf("FS OPEN SERVER(): ret_val %d errno %d and ret_size %d\n", retVal, errno, serverBufSize);
 #endif
-	r.return_val = (void *)ret_int;
-	r.return_size = sizeof(int);
+	r.return_val = (void *)serverBuf;
+	r.return_size = serverBufSize;
 
 	return r;
 }
 
 int fsOpen(const char *fname, int mode) {
+	errno = 0;
     int flags = -1;
 
     if(mode == 0) {
@@ -455,23 +524,50 @@ return_type fsClose_remote(const int nparams, arg_type *a) {
 
 	struct client * curClient = getClient(clientIP, localFolderName);
 
-	int *ret_int = (int *)malloc(sizeof(int));
-
 #ifdef _DEBUG_1_
 	printf("start iterating\n"); fflush(stdout);
 #endif
 
 	freeOpenClient(fd, curClient);
-	
-	*ret_int = fsClose(fd);
 
-	r.return_val = (void *)ret_int;
-	r.return_size = sizeof(int);
+	// allow other clients that are blocked to open this file
+	fileOpenServerPath *tmpServerPath = open_server_path_head;
+	fileOpenServerPath *prevServerPath = NULL;
+	while(tmpServerPath != NULL) {
+		if(tmpServerPath->fd == fd) {
+			// found the server file path that is being closed
+			if(tmpServerPath == open_server_path_head) {
+				open_server_path_head = tmpServerPath->next;
+			} else {
+				prevServerPath->next = tmpServerPath->next;
+			}
+			free(tmpServerPath);
+			break;
+		}
+		prevServerPath = tmpServerPath;
+	}
+
+	int errNo;
+	int retVal;
+	int serverBufSize = sizeof(errNo) + sizeof(retVal);
+
+	char *serverBuf = malloc(serverBufSize);
+	char *tmpServerBuf = serverBuf;
+	
+	retVal = fsClose(fd);
+	*(int *)tmpServerBuf = retVal;
+	tmpServerBuf += sizeof(retVal);
+	// set error code
+	*(int *)tmpServerBuf = errno;
+
+	r.return_val = (void *)serverBuf;
+	r.return_size = serverBufSize;
 
 	return r;
 }
 
 int fsClose(int fd) {
+	errno = 0;
     return(close(fd));
 }
 
@@ -526,6 +622,7 @@ return_type fsRead_remote(const int nparams, arg_type *a) {
 }
 
 int fsRead(int fd, void *buf, const unsigned int count) {
+	errno = 0;
     return(read(fd, buf, (size_t)count));
 }
 
@@ -582,6 +679,7 @@ return_type fsWrite_remote(const int nparams, arg_type *a) {
 }
 
 int fsWrite(int fd, const void *buf, const unsigned int count) {
+	errno = 0;
     return(write(fd, buf, (size_t)count)); 
 }
 
@@ -624,6 +722,7 @@ return_type fsRemove_remote(const int nparams, arg_type *a) {
 }
 
 int fsRemove(const char *name) {
+	errno = 0;
     return(remove(name));
 }
 

@@ -11,7 +11,7 @@
 #include "simplified_rpc/ece454rpc_types.h"
 #include <stdint.h>
 
-#if 1
+#if 0
 #define _DEBUG_1_
 #endif
 
@@ -230,8 +230,16 @@ FSDIR* fsOpenDir(const char *folderName) {
 	ans = make_remote_call(rem_server->srvIpOrDomName, rem_server->srvPort, "fsOpenDir_remote", 2, 
  			strlen(folderName) + 1, folderName,
  			sizeof(clientIP), (void *)&clientIP);
+
     FSDIR *ans_ret = (FSDIR *)ans.return_val;
 	printf("The folder name opened on the client side%s\n", ans_ret->name);
+	// set the error flag here
+	errno = ans_ret->errNo;
+
+#ifdef _DEBUG_1_
+	printf("FS OPEN DIR: errno %d\n", errno);
+#endif
+
     return (FSDIR *)ans.return_val;
 }
 
@@ -264,7 +272,16 @@ int fsCloseDir(FSDIR *folder) {
 	ans = make_remote_call(rem_server->srvIpOrDomName, rem_server->srvPort, "fsCloseDir_remote", 1, 
 		sizeof(*folder), folder);
 
-	return *(int *)ans.return_val;
+	char *serverBuf = (char *)ans.return_val;
+	int ret_val = *(int *)serverBuf;
+    serverBuf += sizeof(ret_val);
+    errno = *(int *)serverBuf;
+
+#ifdef _DEBUG_1_
+    printf("FS CLOSE DIR: () ret_val %d and errno %d\n", ret_val, errno);
+#endif
+
+    return ret_val;
 }
 
 struct fsDirent *fsReadDir(FSDIR *folder) {
@@ -318,24 +335,43 @@ int fsOpen(const char *fname, int mode) {
 #endif
 		return -1;
 	}
-
-    ans = make_remote_call(rem_server->srvIpOrDomName, rem_server->srvPort, "fsOpen_remote", 4,
-    	sizeof(uint32_t), (void *)&clientIP,
-    	strlen(localFolderName) + 1, localFolderName,
-    	strlen(fname) + 1, fname,
-    	sizeof(mode), (void *)&mode
+	// initialize fd to -100, assume that the server has the file open by another client
+	int fd = -100;
+	// server sent a message informing the client that 
+    // this file is opened by another client. 
+    // Hence, we wait.
+    while(fd == -100 ) {
+    	ans = make_remote_call(rem_server->srvIpOrDomName, rem_server->srvPort, "fsOpen_remote", 4,
+    		sizeof(uint32_t), (void *)&clientIP,
+    		strlen(localFolderName) + 1, localFolderName,
+    		strlen(fname) + 1, fname,
+    		sizeof(mode), (void *)&mode
     	);
 
-    int fd = *(int *)ans.return_val;
+    	char *serverBuf = (char *)ans.return_val;
+    	fd = *(int *)serverBuf;
+    	serverBuf += sizeof(fd);
+    	errno = *(int *)serverBuf;
 
-    clientFD *newFD = malloc(sizeof(clientFD));
-    newFD->fd = fd;
-    newFD->ip = clientIP;
-    newFD->next = clientFD_head;
+    	// create some delay
+    	usleep(100000);
+    }
+    
 
-    strcpy(newFD->localFolderName, localFolderName);
+#ifdef _DEBUG_1_
+    printf("FS Open:() fd %d and errno %d\n", fd, errno);
+#endif
 
-    clientFD_head = newFD;
+    if(!errno) {
+    	clientFD *newFD = malloc(sizeof(clientFD));
+    	newFD->fd = fd;
+    	newFD->ip = clientIP;
+    	newFD->next = clientFD_head;
+
+    	strcpy(newFD->localFolderName, localFolderName);
+
+    	clientFD_head = newFD;
+    }
 
     return fd;
 }
@@ -399,12 +435,19 @@ int fsClose(int fd) {
     	sizeof(int), (void *)&fd
     	);
 
-	int ret_val = *(int *)ans.return_val;
+	char *serverBuf = (char *)ans.return_val;
 
-	if (ret_val == -1)
-		return ret_val;
+	int ret_val = *(int *)serverBuf;
+	serverBuf += sizeof(ret_val);
+	errno = *(int *)serverBuf;
 
-	freeClientFD(fd);
+#ifdef _DEBUG_1_
+    printf("FS Close:() ret_val %d and errno %d\n", ret_val, errno);
+#endif
+
+    if(!errno) {
+    	freeClientFD(fd);
+    }
 
     return ret_val;
 }
@@ -440,12 +483,12 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 	char *serverBuf = (char *)ans.return_val;
 	int numBytesRead = *(int *)serverBuf;
 	serverBuf += sizeof(numBytesRead);
-	int errNo = *(int *)serverBuf;
-	serverBuf += sizeof(errNo);
+	errno = *(int *)serverBuf;
+	serverBuf += sizeof(errno);
 
 	buf = serverBuf;
 #ifdef _DEBUG_1_
-	printf("num bytes read: %d, errNo %d and buf %s\n", numBytesRead, errNo, serverBuf);
+	printf("num bytes read: %d, errNo %d and buf %s\n", numBytesRead, errno, serverBuf);
 #endif
 
 	return numBytesRead;
@@ -482,10 +525,10 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
     char *serverBuf =(char *)ans.return_val;
     int numBytesWritten = *(int *)serverBuf;
     serverBuf += sizeof(numBytesWritten);
-    int errNo = *(int *)serverBuf;
+    errno = *(int *)serverBuf;
 
 #ifdef _DEBUG_1_
-    printf("num bytes written %d, errno %d\n", numBytesWritten, errNo);
+    printf("num bytes written %d, errno %d\n", numBytesWritten, errno);
 #endif
 
     return numBytesWritten;
@@ -527,10 +570,10 @@ int fsRemove(const char *name) {
     char *serverBuf = (char *)ans.return_val;
     int retVal = *(int *)serverBuf;
     serverBuf += sizeof(retVal);
-    int errNo = *(int *)serverBuf;
+    errno = *(int *)serverBuf;
 
 #ifdef _DEBUG_1_
-    printf("FS Remove: errno %d return val %d\n", errNo, retVal);
+    printf("FS Remove: errno %d return val %d\n", errno, retVal);
 #endif
 
     return retVal;

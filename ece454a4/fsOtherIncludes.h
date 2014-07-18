@@ -26,9 +26,9 @@ typedef struct clientFD {
 */
 typedef struct fileOpen {
 	int mode;
-	int *next;
+	struct fileOpen *next;
 	int fd;
-	char name[256];
+	char name[256]; // client side name
 }fileOpen;
 
 /*
@@ -46,6 +46,7 @@ typedef struct FSDIR {
 	// assume that the length of the folder name does not exceed 256 bytes
 	// TODO: Fix this
 	char name[256]; 
+	int errNo;
 	//struct dirent entry;
 	//struct client who;
 }FSDIR;
@@ -59,5 +60,13 @@ struct mounted_servers {
 	char * localFolderName;
 	struct mounted_servers *next;
 };
+
+typedef struct fileOpenServerPath {
+	// fd created when the server opened the file for 
+	// THE ONE client
+	int fd; 
+	char name[256]; // server side name
+	struct fileOpenServerPath *next;
+}fileOpenServerPath;
 
 #endif

@@ -30,13 +30,31 @@ int main(int argc, char *argv[]) {
     strcat(toOpenDir, ".");
     printf("Opening dir %s\n", toOpenDir);
 
+    char *toOpenDir2 = malloc(strlen(dirname) + 1 + strlen("simplified_rpc") + 1);
+    strcpy(toOpenDir2, dirname);
+    strcat(toOpenDir2, "/");
+    strcat(toOpenDir2, "simplified_rpc");
+    printf("opening dir %s\n", toOpenDir2);
+    
+
     FSDIR *fd = fsOpenDir(toOpenDir);
     if(fd == NULL) {
         perror("fsOpenDir"); exit(1);
     }
 
+    FSDIR *fd2 = fsOpenDir(toOpenDir2);
+    if(fd2 == NULL) {
+        perror("fsOpenDir"); exit(1);
+    }
+
+    printf("Reading dir %s\n", toOpenDir);
     struct fsDirent *fdent = NULL;
     for(fdent = fsReadDir(fd); fdent != NULL; fdent = fsReadDir(fd)) {
+        printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
+    }
+
+    printf("Reading sub - dir %s\n", toOpenDir2);
+    for(fdent = fsReadDir(fd2); fdent != NULL; fdent = fsReadDir(fd2)) {
         printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
     }
 
@@ -44,7 +62,7 @@ int main(int argc, char *argv[]) {
     strcpy(toOpen, dirname);
     strcat(toOpen, "/");
     strcat(toOpen, "test.txt");
-    printf("opening file %s\n", toOpen);
+    printf("opening file test.txt in read mode %s\n", toOpen);
 
     int ff = fsOpen(toOpen, 0);
     if(ff < 0) {
@@ -68,17 +86,40 @@ int main(int argc, char *argv[]) {
 
     char *buf = "abc";
     if(fsWrite(ff, buf, strlen(buf)) < strlen(buf)) {
-    fprintf(stderr, "fsWrite() wrote fewer than 3\n");
+        fprintf(stderr, "fsWrite() wrote fewer than 3\n");
     }
 
-    printf("fsClose(): %d\n", fsClose(ff));
+    printf("fsClose(): %s %d\n", toOpen, fsClose(ff));
+    
+    
+    char *toOpen2 = malloc(strlen(dirname) + 1 + strlen("test2.txt") + 1);
+    strcpy(toOpen2, dirname);
+    strcat(toOpen2, "/");
+    strcat(toOpen2, "test2.txt");
+    printf("opening file in write mode %s\n", toOpen2);
+
+    int ff2 = fsOpen(toOpen2, 1);
+    if(ff2 < 0) {
+        perror("fsOpen()"); exit(1);
+    }
+    else printf("fsOpen(): %d\n", ff2);
+
+    if(fsWrite(ff2, buf, strlen(buf)) < strlen(buf)) {
+        fprintf(stderr, "fsWrite() wrote fewer than 3\n");
+    }
+
+    printf("fsClose(): %s %d\n", toOpen2, fsClose(ff2));
 
     printf("fsRemove(%s): %d\n", toOpen, fsRemove(toOpen));
 
-    printf("Closing folder %s with return code %d\n", dirname, fsCloseDir(fd));
+    //printf("fsRemove(%s): %d\n", toOpen2, fsRemove(toOpen2));
+
+    printf("Closing folder %s with return code %d\n", toOpenDir, fsCloseDir(fd));
+    printf("Closing folder %s with return code %d\n", toOpenDir2, fsCloseDir(fd2));
+    //printf("Closing folder %s with return code %d\n", toOpenDir2, fsCloseDir(fd2));
 
     printf("fsUnMount(): UnMounting %s with result %d\n", dirname, fsUnMount(dirname));
-
+    
     
 
     //printf("fsCloseDir(): %d\n", fsCloseDir(fd));
