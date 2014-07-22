@@ -32,6 +32,11 @@ struct clientFD * clientFD_head = NULL;
 
 return_type ans;
 
+/*
+* Returns an instance of the mounted server structure.
+* Inputs: Local folder name used by the client when mounting 
+* the remote server.
+*/
 struct mounted_servers * getRemoteServer(const char * folderName) {
 	// base check
 	if(ms_head == NULL) {
@@ -40,20 +45,30 @@ struct mounted_servers * getRemoteServer(const char * folderName) {
 	struct mounted_servers *tmp;
 	for(tmp = ms_head; tmp != NULL; tmp = tmp->next) {
 		if( !strcmp(tmp->localFolderName, folderName) ) {
-
+#ifdef _DEBUG_1_
 			printf("Found remote server\n");
+#endif
 			return tmp;
 		}
 	}
 	return NULL;
 }
-
+/*
+* Deallocates memory for the mounted server. To be called when the 
+* client Unmounts the remote server.
+*/
 void freeMountedServer(struct mounted_servers *to_free) {
 	free(to_free->srvIpOrDomName);
 	free(to_free->localFolderName);
 	free(to_free);
 }
 
+/*
+* Adds a remote server to the linked list of mounted servers on the client side.
+* Inputs: The serverIp or domain name to identify the remote server.
+* 		  The server port number.
+* 	      The local folder name used by the client to reference the server.
+*/
 void addMountedServer(const char * srvIpOrDomName, int srvPort, const char * localFolderName) {
 	struct mounted_servers *ms = (struct mounted_servers *)malloc(sizeof(struct mounted_servers));
 	
@@ -85,6 +100,12 @@ void addMountedServer(const char * srvIpOrDomName, int srvPort, const char * loc
 #endif
 }
 
+/*
+* Removes a remote server from the linked list of mounted servers stored
+* on the client side. To be called when client is unmounting a server.
+* Inputs: The local folder name used to reference the remote server by the 
+* client.
+*/
 int removeMountedServer(const char *localFolderName) {
 
 	// Basic sanity check
@@ -143,7 +164,8 @@ int removeMountedServer(const char *localFolderName) {
 }
 
 /*
-* Mounts the remote folder locally. 
+* Client API Function.
+* Mounts the remote folder locally by adding to a global linked list of mounted servers.
 * Returns 0 on success and -1 on failure. Errno is set appropriately.
 * 
 */
@@ -172,7 +194,9 @@ int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *
 }
 
 /*
-* Unmounts a remote file system. 
+* Client API Function
+* Unmounts a remote file system by removing the server from the 
+* linked list of mounted servers.
 * Returns 0 on success, -1 on failure. Errno is set appropriately.
 */
 int fsUnMount(const char *localFolderName) {
@@ -206,6 +230,15 @@ int fsUnMount(const char *localFolderName) {
 	return -1;
 }
 
+/*
+* CLIENT API Function
+* Opens the folder name that is presumably the local name
+* of the folder name that has been mounted previously with fsMount().
+* Note that this handles tha case if foldername is a subfolder
+* within the folder that has been mounted. 
+* Return type: FSDIR pointer which is defined in fsOtherIncludes.h
+* errno is set appropriately.
+*/
 FSDIR* fsOpenDir(const char *folderName) {
 	uint32_t clientIP = getPublicIPAddr();
 	char * tmpFolderName = malloc(strlen(folderName) + 1);
@@ -243,6 +276,11 @@ FSDIR* fsOpenDir(const char *folderName) {
     return (FSDIR *)ans.return_val;
 }
 
+/* 
+* Client API Function:
+* The counterpart of fsOpenDir(). After this call, the FSDIR * argument is no longer
+* valid. Returns 0 on success and -1 on failure. errno is set on failure.
+*/
 int fsCloseDir(FSDIR *folder) {
 
 #ifdef _DEBUG_1_
@@ -284,6 +322,15 @@ int fsCloseDir(FSDIR *folder) {
     return ret_val;
 }
 
+/*
+* Client API Function:
+* Returns the next entry in the folder to which the argument refers. That is, a caller
+* can repeatedly call fsReadDir() to "folder" a folder for its contents. The return type
+* is a pointer to something of type struct fsDirent, which is defined in ece454_fs.h.\
+* The return is NULL if either an error occurs, or if we reach the end of the folder's 
+* contents. In case of error, errno is set appropriately. In the latter case, errno is set 
+* to 0 so that the caller knows that no error occured.
+*/
 struct fsDirent *fsReadDir(FSDIR *folder) {
     const int initErrno = errno;
     
@@ -313,6 +360,15 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     return (struct fsDirent *)(ans.return_val);
 }
 
+/*
+* Client API Function:
+* Opens a file whose path is fname. The mode is one of two values: 0 for read and 1 for write. 
+* Returns a file descriptor that can be used in future calls for operations on this file.
+* If the file does not exist and the mode is write (i.e. 1) then the file should be created.
+* The permissions up on creation should be that clients are able to read and write the file. 	
+* "write" means that the file will be overwritten by subsequent fsWrite() calls. The return is
+* positive if no error occurs. Otherwise, it is -1, and errno is set appropriately. 
+*/
 int fsOpen(const char *fname, int mode) {
 	uint32_t clientIP = getPublicIPAddr();
 	char * tmpFName = malloc(strlen(fname) + 1);
@@ -376,6 +432,15 @@ int fsOpen(const char *fname, int mode) {
     return fd;
 }
 
+/*
+* Internal client API function: 
+* fOpen returns a file descriptor if the server with 'ip'
+* successfully opened the desired file.
+* This function may be used fsRead, fsWrite and fsClose
+* to retrieve 'clientFD' which is declared in fsOtherIncludes.h.
+* clientFD keeps track of clients that have opened files 
+* for each mounted server.
+*/
 struct clientFD * getClientByFD(const uint32_t ip, const int fd) {
 	struct clientFD *tmp = clientFD_head;
 
@@ -391,6 +456,12 @@ struct clientFD * getClientByFD(const uint32_t ip, const int fd) {
 	return NULL;
 }
 
+/*
+* Internal client API function:
+* This function may be used by fsClose to deallocate memory for the 
+* clientFD structure when fsClose is called successfully by a client
+* on the file descriptor 'fd' returned by fOpen.
+*/
 void freeClientFD(int fd) {
 	clientFD * tmp = clientFD_head;
 	clientFD * prev = NULL;
@@ -408,6 +479,11 @@ void freeClientFD(int fd) {
 	}
 }
 
+/* Client API Function
+* The counterpart of fsOpen(). The argument file descriptor is no longer valid 
+* after this call. Returns 0 on success and -1 on failure. errno is set
+* appropriately.
+*/
 int fsClose(int fd) {
 #ifdef _DEBUG_1_
 	printf("FS Close:\n"); fflush(stdout);
@@ -452,6 +528,13 @@ int fsClose(int fd) {
     return ret_val;
 }
 
+/*
+* Client API Function:
+* Used to rad up to count bytes into the supplied buffer 'buf' from the file 
+* referred to by file descriptor 'fd' which is presumably the 'fd' returned 
+* fsOpen(). The return is the number of bytes actually read and filled into 
+* buf. The return is -1 on error, errno set appropriately.
+*/
 int fsRead(int fd, void *buf, const unsigned int count) {
 #ifdef _DEBUG_1_
 	printf("fsRead():\n"); fflush(stdout);
@@ -494,6 +577,12 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 	return numBytesRead;
 }
 
+/*
+* Client API Function:
+* Writes upto count bytes from buf into the file referred by 'fd' presumably returned
+* from the call to fsOpen(). If the file already exists, then fsWrite() overwrites 
+* the contents the file with contents of buf.
+*/
 int fsWrite(int fd, const void *buf, const unsigned int count) {
 #ifdef _DEBUG_1
 	printf("fsWrite():\n"); fflush(stdout);
@@ -534,6 +623,10 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
     return numBytesWritten;
 }
 
+/*
+* Client API Function:
+* Removes this file or folder from the server.
+*/
 int fsRemove(const char *name) {
 #ifdef _DEBUG_1_
 	printf("fsRemove():\n"); fflush(stdout);

@@ -23,6 +23,12 @@ struct fileOpenServerPath * open_server_path_head = NULL;
 
 struct fsDirent dent;
 
+/*
+* Adds a client to the linked list of clients that are maintained on the 
+* server side. A client is identified by its IP Address and the folderName
+* used to mount this server on the client side.
+* This is called when the server mounts() a client.
+*/
 int addClient(const uint32_t newIP, const char *folderName) {
 	if(newIP == 0) {
 		errno = EINVAL;
@@ -47,11 +53,19 @@ int addClient(const uint32_t newIP, const char *folderName) {
 	return 0;
 }
 
+/*
+* Deallocates memory for a given input client from the client linked list
+* structure maintained by the server side.
+*/
 void freeClient(struct client *tmp) {
 	free(tmp->localFolderName);
 	free(tmp);
 }
 
+/*
+* Removes a client linked list node from the server side. This is called 
+* when the server unMounts the client. 
+*/
 int removeClient(const uint32_t ip, const char *folderName) {
 	struct client * tmp = client_head;
 	struct client * prev = NULL;
@@ -74,6 +88,11 @@ int removeClient(const uint32_t ip, const char *folderName) {
 	return -1;
 }
 
+/*
+* Returns the client node given the identifying client IP address
+* and the local folder name used by the client to identify the 
+* remote server. 
+*/
 struct client * getClient(const uint32_t ip, const char *folderName) {
 #ifdef _DEBUG_1_
 	printf("IP is %d and folderName is %s\n", ip, folderName); fflush(stdout);
@@ -89,9 +108,10 @@ struct client * getClient(const uint32_t ip, const char *folderName) {
 #endif
 	return NULL;
 }
-
-// builds the server side folder path given the client side folder path
-// Note the folder path may be to subdirectory
+/*
+* Builds the server side folder path given the client side folder path
+* Note the folder path may be to subdirectory
+*/
 char * buildServerSideFolderPath(char *fname) {
 	char *tmpFolderName = malloc(strlen(fname) + 1);
 	strcpy(tmpFolderName, fname);
@@ -115,11 +135,18 @@ char * buildServerSideFolderPath(char *fname) {
 	return serverSideFolderPath;
 }
 
+/*
+* Opens a directory given the folder name as input.
+* Returns a pointer to FSDIR as defined in fsOtherIncludes.h
+*/
 FSDIR * fsOpenDirectory(const char * folderName) {
 	errno = 0;
 	return (opendir(folderName));
 }
 
+/*
+* Allows a client to mount this remote server locally.
+*/
 return_type fsMount_remote(const int nparams, arg_type* a) {
 #ifdef _DEBUG_1_
 	printf("FS Server: fsMount\n"); fflush(stdout);
@@ -163,6 +190,9 @@ return_type fsMount_remote(const int nparams, arg_type* a) {
     return r;
 }
 
+/*
+* Allows a client to unMount this remote server locally.
+*/
 return_type fsUnMount_remote(const int nparams, arg_type* a) {
 #ifdef _DEBUG_1_
 	printf("FS Server: fsUnMount\n"); fflush(stdout);
@@ -189,6 +219,9 @@ return_type fsUnMount_remote(const int nparams, arg_type* a) {
 	return r;
 }
 
+/*
+* Allows a client to open a directory or subdirectory under the 'root'
+*/
 return_type fsOpenDir_remote(const int nparams, arg_type* a) {
 #ifdef _DEBUG_1_
 	printf("FS Server: fsOpenDir\n"); fflush(stdout);
@@ -242,7 +275,9 @@ return_type fsOpenDir_remote(const int nparams, arg_type* a) {
 	return r;
 }
 
-
+/*
+* Allows a client to read the contents of an input directory.
+*/
 return_type fsReadDir_remote(const int nparams, arg_type* a) {
 #ifdef _DEBUG_1_
 	printf("FS Server: fsReadDir\n"); fflush(stdout);
@@ -276,6 +311,10 @@ return_type fsReadDir_remote(const int nparams, arg_type* a) {
 	return r;
 }
 
+/*
+* Returns a directory entry structure corresponding 
+* to a readdir on the input FSDIR * folder.
+*/
 struct fsDirent *fsReadDir(FSDIR *folder) {
     const int initErrno = errno;
     errno = 0;
@@ -301,11 +340,14 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
     struct fsDirent *to_return = malloc(sizeof(dent));
     to_return->entType = dent.entType;
     memcpy(&(to_return->entName), &(d->d_name), 256);
-    //return &dent;
+
     return to_return;
 }
 
-
+/*
+* Allows a client to close a directory. Presumably, the client 
+* has called fsOpenDir_remote() prior to this.
+*/
 return_type fsCloseDir_remote(const int nparams, arg_type* a) {
 #ifdef _DEBUG_1_
 	printf("FS Server: fsCloseDir\n"); fflush(stdout);
@@ -341,7 +383,9 @@ return_type fsCloseDir_remote(const int nparams, arg_type* a) {
 	return r;
 }
 
-
+/*
+* Allows a client to open a file on the remote server.
+*/
 return_type fsOpen_remote(const int nparams, arg_type * a) {
 #ifdef _DEBUG_1_
 	printf("FS Server: fsOpen\n"); fflush(stdout);
@@ -472,6 +516,10 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 	return r;
 }
 
+/*
+* Simple function to open a file given the filename 
+* and the mode.
+*/
 int fsOpen(const char *fname, int mode) {
 	errno = 0;
     int flags = -1;
@@ -486,6 +534,11 @@ int fsOpen(const char *fname, int mode) {
     return(open(fname, flags, S_IRWXU));
 }
 
+/*
+* When a client calls fsClose. Then deallocate memory for the 
+* client node structure that maintains a linked list of 
+* clients that have the file open on the server side.
+*/
 void freeOpenClient(int fd, struct client *curClient) {
 	fileOpen *prev = NULL;
 	fileOpen *tmp = curClient->fileOpenHead;
@@ -509,6 +562,9 @@ void freeOpenClient(int fd, struct client *curClient) {
 	}
 }
 
+/* 
+* Allows a client to close a file on this remote server.
+*/
 return_type fsClose_remote(const int nparams, arg_type *a) {
 #ifdef _DEBUG_1_
 	printf("FS Close remote:\n"); fflush(stdout);
@@ -570,11 +626,18 @@ return_type fsClose_remote(const int nparams, arg_type *a) {
 	return r;
 }
 
+/*
+* Simple function that closes a file given a file descriptor that was
+* presumably returned from fsOpen() on the server side.
+*/
 int fsClose(int fd) {
 	errno = 0;
     return(close(fd));
 }
 
+/*
+* Allows a client to read the contents of a file on the remote server.
+*/
 return_type fsRead_remote(const int nparams, arg_type *a) {
 #ifdef _DEBUG_1_
 	printf("fsRead_remote: ()\n"); fflush(stdout);
@@ -625,11 +688,18 @@ return_type fsRead_remote(const int nparams, arg_type *a) {
 	return r;
 }
 
+/*
+* Simple function to read a file given a file descriptor, input buffer to
+* store the data and the number of bytes to read.
+*/
 int fsRead(int fd, void *buf, const unsigned int count) {
 	errno = 0;
     return(read(fd, buf, (size_t)count));
 }
 
+/*
+* Allows a client to write to a file on the remote server.
+*/
 return_type fsWrite_remote(const int nparams, arg_type *a) {
 #ifdef _DEBUG_1_
 	printf("fsWrite_remote: ()\n"); fflush(stdout);
@@ -682,11 +752,18 @@ return_type fsWrite_remote(const int nparams, arg_type *a) {
 	return r;
 }
 
+/*
+* Simple function to write to file mapping to 'fd' with the contents of 
+* 'buf' and number of bytes = count.
+*/
 int fsWrite(int fd, const void *buf, const unsigned int count) {
 	errno = 0;
     return(write(fd, buf, (size_t)count)); 
 }
 
+/*
+* Simple function to remove a file from the remote server.
+*/
 return_type fsRemove_remote(const int nparams, arg_type *a) {
 #ifdef _DEBUG_1_
 	printf("fsRemove_remote: ()\n"); fflush(stdout);
@@ -725,11 +802,21 @@ return_type fsRemove_remote(const int nparams, arg_type *a) {
 	return r;
 }
 
+/*
+* Simple function to remove a file from the server side.
+*/
 int fsRemove(const char *name) {
 	errno = 0;
     return(remove(name));
 }
 
+/*
+* MAIN Function on the server side. 
+* Inputs: directory to be served.
+* Registers the necessary procedures that may be called from 
+* the client_api.c
+* Launches the TCP/IP server.
+*/
 int main(int argc, char *argv[]) {
 	if(argc < 2) {
 		printf("usage: servedFolder\n");

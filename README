@@ -1,13 +1,7 @@
-To run this DFS application:
+Group members:
 
-1. make clean
-2. make libstubs.a
-3. make server
-4. make client
-4. ./server
+Khushi Sohi
+Satyam Gupta
 
-Get the output from server i.e. serverIpOrName and serverPort
-
-5. ./client . 129.97.56.12 10000
-
-Change the parameters to fs_client as desired.
+Coding Style Followed for the Distributed File System Project:
+http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
