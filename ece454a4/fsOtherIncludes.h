@@ -28,6 +28,7 @@ typedef struct fileOpen {
 	int mode;
 	struct fileOpen *next;
 	int fd;
+	int randomFd;
 	char name[256]; // client side name
 }fileOpen;
 

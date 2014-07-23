@@ -6,7 +6,7 @@
 #include "ece454_fs.h"
 #include <stdint.h>
 
-#if 0
+#if 1
 #define _DEBUG_1_
 #endif
 
@@ -421,6 +421,7 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 
 	int errNo;
 	int retVal;
+	int randomRetVal;
 	int serverBufSize = sizeof(errNo) + sizeof(retVal);
 
 	char *serverBuf = malloc(serverBufSize);
@@ -498,17 +499,23 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 		fileOpenServerPath *new_server_file_path = malloc(sizeof(fileOpenServerPath));
 		strcpy(new_server_file_path->name, serverSideFolderPath);
 		new_server_file_path->fd = retVal;
+		
 		new_server_file_path->next = open_server_path_head;
 		open_server_path_head = new_server_file_path;
 	}
-	*(int *)tmpServerBuf = retVal;
-	tmpServerBuf += sizeof(retVal);
+	randomRetVal = rand();
+	*(int *)tmpServerBuf = randomRetVal;
+	tmpServerBuf += sizeof(randomRetVal);
 	// set error code
 	*(int *)tmpServerBuf = errno;
-
 	newFile->fd = retVal;
+	if(retVal > 0) {
+		newFile->randomFd = randomRetVal;
+	} else {
+		newFile->randomFd = -1;
+	}
 #ifdef _DEBUG_1_
-	printf("FS OPEN SERVER(): ret_val %d errno %d and ret_size %d\n", retVal, errno, serverBufSize);
+	printf("FS OPEN SERVER(): ret_val %d errno %d and ret_size %d\n", randomRetVal, errno, serverBufSize);
 #endif
 	r.return_val = (void *)serverBuf;
 	r.return_size = serverBufSize;
@@ -560,6 +567,7 @@ void freeOpenClient(int fd, struct client *curClient) {
 		prev = tmp;
 
 	}
+	printf("Blah"); fflush(stdout);
 }
 
 /* 
@@ -580,12 +588,28 @@ return_type fsClose_remote(const int nparams, arg_type *a) {
 
 	uint32_t clientIP = *(uint32_t *)a->arg_val;
 	char *localFolderName = (char *)a->next->arg_val;
-	int fd = *(int *)a->next->next->arg_val;
-
+	int rfd = *(int *)a->next->next->arg_val;
+	int fd;
 	struct client * curClient = getClient(clientIP, localFolderName);
 
+	// look through all open files for the client
+	fileOpen * tmp = curClient->fileOpenHead;
+
+	/* This is to check if the SAME client tries to open the same 
+	*  file name twice we return -1.  
+	*/
+	while(tmp != NULL) {
+		if(tmp->randomFd == rfd) {
+			// file already open. TODO: check
+			printf("File found with random fd %d\n", rfd);
+			fd = tmp->fd;
+			printf("File found with fd %d\n", fd);
+		}
+		tmp = tmp->next;
+	}
+
 #ifdef _DEBUG_1_
-	printf("start iterating\n"); fflush(stdout);
+	printf("start iterating %d\n", fd); fflush(stdout);
 #endif
 
 	freeOpenClient(fd, curClient);
@@ -655,14 +679,33 @@ return_type fsRead_remote(const int nparams, arg_type *a) {
 	a = a->next;
 	char *localFolderName = (char *)a->arg_val;
 	a = a->next;
-	int fd = *(int *)a->arg_val;
+	int rfd = *(int *)a->arg_val;
 	a = a->next;
 	int count = *(int *)a->arg_val;
+	int fd;
+
+	struct client * curClient = getClient(clientIP, localFolderName);
+
+	// look through all open files for the client
+	fileOpen * tmp = curClient->fileOpenHead;
+
+	/* This is to check if the SAME client tries to open the same 
+	*  file name twice we return -1.  
+	*/
+	while(tmp != NULL) {
+		if(tmp->randomFd == rfd) {
+			// file already open. TODO: check
+			printf("File found with random fd %d\n", rfd);
+			fd = tmp->fd;
+			printf("File found with fd %d\n", fd);
+		}
+		tmp = tmp->next;
+	}
 
 	int errCode;
 	int numBytesRead;
 	int bufMetaDataSize = sizeof(numBytesRead) + sizeof(errCode);
-	int bufSize =  bufMetaDataSize + sizeof(count);
+	int bufSize =  bufMetaDataSize + count;
 
 	char *buf = malloc(bufSize);
 	char *tmpBuf = buf;
@@ -704,9 +747,9 @@ return_type fsWrite_remote(const int nparams, arg_type *a) {
 #ifdef _DEBUG_1_
 	printf("fsWrite_remote: ()\n"); fflush(stdout);
 #endif
-	if(nparams != 4) {
+	if(nparams != 5) {
 #ifdef _DEBUG_1_
-	printf("fsWrite_remote: Number of parameters incorret\n"); fflush(stdout);
+	printf("fsWrite_remote: Number of parameters incorrect\n"); fflush(stdout);
 #endif
 		r.return_size = 0;
 		r.return_val = NULL;
@@ -715,7 +758,9 @@ return_type fsWrite_remote(const int nparams, arg_type *a) {
 
 	uint32_t clientIP = *(uint32_t *)a->arg_val;
 	a = a->next;
-	int fd = *(int *)a->arg_val;
+	char *localFolderName = (char *)a->arg_val;
+	a = a->next;
+	int rfd = *(int *)a->arg_val;
 	a = a->next;
 	int count = *(int *)a->arg_val;
 	a = a->next;
@@ -726,6 +771,25 @@ return_type fsWrite_remote(const int nparams, arg_type *a) {
 	int serverBufSize = sizeof(numBytesWritten) + sizeof(errNo);
 	char *serverBuf = malloc(serverBufSize);
 	char *tmpServerBuf = serverBuf;
+	int fd;
+
+	struct client * curClient = getClient(clientIP, localFolderName);
+
+	// look through all open files for the client
+	fileOpen * tmp = curClient->fileOpenHead;
+
+	/* This is to check if the SAME client tries to open the same 
+	*  file name twice we return -1.  
+	*/
+	while(tmp != NULL) {
+		if(tmp->randomFd == rfd) {
+			// file already open. TODO: check
+			printf("File found with random fd %d\n", rfd); fflush(stdout);
+			fd = tmp->fd;
+			printf("File found with fd %d\n", fd); fflush(stdout);
+		}
+		tmp = tmp->next;
+	}
 
 	// to check if fd is open first
 	// TODO
@@ -818,6 +882,7 @@ int fsRemove(const char *name) {
 * Launches the TCP/IP server.
 */
 int main(int argc, char *argv[]) {
+	srand(time(NULL));
 	if(argc < 2) {
 		printf("usage: servedFolder\n");
 		return -1;
@@ -831,7 +896,7 @@ int main(int argc, char *argv[]) {
     register_procedure("fsOpen_remote", 4, fsOpen_remote);
     register_procedure("fsClose_remote", 3, fsClose_remote);
     register_procedure("fsRead_remote", 4, fsRead_remote);
-    register_procedure("fsWrite_remote", 4, fsWrite_remote);
+    register_procedure("fsWrite_remote", 5, fsWrite_remote);
     register_procedure("fsRemove_remote", 2, fsRemove_remote);
 
 #ifdef _DEBUG_1_

@@ -3,8 +3,11 @@ OBJECTS := $(patsubst %.c,%.o,$(wildcard *.c))
 fs_client: fs_client.o client_api.o
 	gcc fs_client.o client_api.o simplified_rpc/libstubs.a -o fs_client
 
-client2: fs_client2.o client_api.o
-	gcc fs_client2.o client_api.o simplified_rpc/libstubs.a -o client2
+fs_client2: fs_client2.o client_api.o
+	gcc fs_client2.o client_api.o simplified_rpc/libstubs.a -o fs_client2
+
+fs_client3: fs_client3.o client_api.o
+	gcc fs_client3.o client_api.o simplified_rpc/libstubs.a -o fs_client3
 
 server: fs_server.o libstubs.a
 	gcc fs_server.o simplified_rpc/libstubs.a -o server

@@ -92,11 +92,13 @@ int main(int argc, char *argv[]) {
     printf("fsClose(): %s %d\n", toOpen, fsClose(ff));
     
     
-    /*char *toOpen2 = malloc(strlen(dirname) + 1 + strlen("test2.txt") + 1);
+    char *toOpen2 = malloc(strlen(dirname) + 1 + strlen("test2.txt") + 1);
     strcpy(toOpen2, dirname);
     strcat(toOpen2, "/");
     strcat(toOpen2, "test2.txt");
     printf("opening file in write mode %s\n", toOpen2);
+
+    //usleep(10000000);
 
     int ff2 = fsOpen(toOpen2, 1);
     if(ff2 < 0) {
@@ -110,7 +112,7 @@ int main(int argc, char *argv[]) {
 
     printf("fsClose(): %s %d\n", toOpen2, fsClose(ff2));
 
-    printf("fsRemove(%s): %d\n", toOpen, fsRemove(toOpen));
+    /*printf("fsRemove(%s): %d\n", toOpen, fsRemove(toOpen));
 
 
     //printf("fsRemove(%s): %d\n", toOpen2, fsRemove(toOpen2));

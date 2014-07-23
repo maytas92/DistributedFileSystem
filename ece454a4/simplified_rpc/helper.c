@@ -48,6 +48,36 @@ uint32_t getPublicIPAddr() {
     return 0;
 }
 
+uint32_t getPublicIPPortnumber() {
+	struct ifaddrs *ifa;
+
+    if(getifaddrs(&ifa) < 0) {
+	perror("getifaddrs"); exit(0);
+    }
+
+    struct ifaddrs *c;
+    for(c = ifa; c != NULL; c = c->ifa_next) {
+	if(c->ifa_addr == NULL) continue;
+	if(c->ifa_addr->sa_family == AF_INET) {
+	    struct sockaddr_in a;
+
+	    memcpy(&a, (c->ifa_addr), sizeof(struct sockaddr_in));
+	    char *as = inet_ntoa(a.sin_addr);
+	    //printf("%s\n", as);
+	    
+	    int apart;
+	    sscanf(as, "%d", &apart);
+	    if(apart > 0 && apart != 127) {
+		freeifaddrs(ifa);
+		return (a.sin_port);
+	    }
+	}
+    }
+
+    freeifaddrs(ifa);
+    return 0;
+}
+
 void printBuf(char *buf, int size) {
     /* Should match the output from od -x */
     int i;
