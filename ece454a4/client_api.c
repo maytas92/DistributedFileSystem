@@ -182,6 +182,15 @@ int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *
 	printf("fsMount Client: %s\n", localFolderName); fflush(stdout);
 #endif
 
+	struct mounted_servers* rem_server = getRemoteServer(localFolderName);
+
+	if(rem_server != NULL) {
+		if(!strcmp(rem_server->srvIpOrDomName, srvIpOrDomName) &&
+			rem_server->srvPort == srvPort) {
+			return -1;
+		}
+	}
+
 	// Begin Client side storage of mounted servers
 	addMountedServer(srvIpOrDomName, srvPort, localFolderName);
  	// End of client side storage
@@ -202,7 +211,7 @@ int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *
 * linked list of mounted servers.
 * Returns 0 on success, -1 on failure. Errno is set appropriately.
 */
-int fsUnMount(const char *localFolderName) {
+int fsUnmount(const char *localFolderName) {
 	// remove the mounted server corresponding to localfoldername from the 'mounted servers'
 	struct mounted_servers* rem_server = getRemoteServer(localFolderName);
 	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
@@ -659,8 +668,9 @@ int fsRemove(const char *name) {
 		return -1;
 	}
 
-	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsRemove_remote", 2,
+	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsRemove_remote", 3,
 		sizeof(uint32_t), (void *)&clientIP,
+		strlen(ms->localFolderName) + 1, ms->localFolderName,
 		strlen(name) + 1, (void *)name
 		);
 

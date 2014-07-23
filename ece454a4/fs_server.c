@@ -504,7 +504,11 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 		open_server_path_head = new_server_file_path;
 	}
 	randomRetVal = rand();
-	*(int *)tmpServerBuf = randomRetVal;
+	if(retVal > 0) {
+		*(int *)tmpServerBuf = randomRetVal;
+	} else {
+		*(int *)tmpServerBuf = -1;
+	}
 	tmpServerBuf += sizeof(randomRetVal);
 	// set error code
 	*(int *)tmpServerBuf = errno;
@@ -515,7 +519,7 @@ return_type fsOpen_remote(const int nparams, arg_type * a) {
 		newFile->randomFd = -1;
 	}
 #ifdef _DEBUG_1_
-	printf("FS OPEN SERVER(): ret_val %d errno %d and ret_size %d\n", randomRetVal, errno, serverBufSize);
+	printf("FS OPEN SERVER(): ret_val %d errno %d and ret_size %d\n", newFile->randomFd, errno, serverBufSize);
 #endif
 	r.return_val = (void *)serverBuf;
 	r.return_size = serverBufSize;
@@ -832,7 +836,7 @@ return_type fsRemove_remote(const int nparams, arg_type *a) {
 #ifdef _DEBUG_1_
 	printf("fsRemove_remote: ()\n"); fflush(stdout);
 #endif
-	if(nparams != 2) {
+	if(nparams != 3) {
 #ifdef _DEBUG_1_
 	printf("fsRemove_remote: Number of parameters incorret\n"); fflush(stdout);
 #endif
@@ -841,11 +845,31 @@ return_type fsRemove_remote(const int nparams, arg_type *a) {
 		return r;
 	}	
 
-	uint32_t clientIP = a->arg_val;
+	uint32_t clientIP = *(uint32_t *)a->arg_val;
 	a = a->next;
-	char *dirName = a->arg_val;
-	char *serverDirName = buildServerSideFolderPath(dirName);
+	char *localFolderName = (char *)a->arg_val;
+	a = a->next;
+	char *dirName = (char *)a->arg_val;
 	
+	char *serverDirName = buildServerSideFolderPath(dirName);
+
+	struct client * curClient = getClient(clientIP, localFolderName);
+
+	// look through all open files for the client
+	fileOpen * tmp = curClient->fileOpenHead;
+
+	/* This is to check if the SAME client tries to open the same 
+	*  file name twice we return -1.  
+	*/
+	while(tmp != NULL) {
+		if(!strcmp(tmp->name, dirName)) {
+			// file already open. TODO: check
+			printf("File found with name %s\n", dirName); fflush(stdout);
+			break;
+		}
+		tmp = tmp->next;
+	}
+
 	int errNo;
 	int retVal;
 	int serverBufSize = sizeof(errNo) + sizeof(retVal);
@@ -853,7 +877,11 @@ return_type fsRemove_remote(const int nparams, arg_type *a) {
 	char *serverBuf = malloc(serverBufSize);
 	char *tmpServerBuf = serverBuf;
 	
-	retVal = fsRemove(serverDirName);	
+	if(tmp == NULL) {
+		retVal = fsRemove(serverDirName);	
+	} else {
+		retVal = -1;
+	}
 #ifdef _DEBUG_1_
 	printf("return value in fs remove () is %d\n", retVal);
 #endif
@@ -897,7 +925,7 @@ int main(int argc, char *argv[]) {
     register_procedure("fsClose_remote", 3, fsClose_remote);
     register_procedure("fsRead_remote", 4, fsRead_remote);
     register_procedure("fsWrite_remote", 5, fsWrite_remote);
-    register_procedure("fsRemove_remote", 2, fsRemove_remote);
+    register_procedure("fsRemove_remote", 3, fsRemove_remote);
 
 #ifdef _DEBUG_1_
     printRegisteredProcedures();
