@@ -6,7 +6,7 @@
 #include "ece454_fs.h"
 #include <stdint.h>
 
-#if 1
+#if 0
 #define _DEBUG_1_
 #endif
 
