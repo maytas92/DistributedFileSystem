@@ -10,7 +10,7 @@ fs_client3: fs_client3.o client_api.o
 	gcc fs_client3.o client_api.o simplified_rpc/libstubs.a -o fs_client3
 
 server: fs_server.o libstubs.a
-	gcc fs_server.o simplified_rpc/libstubs.a -o server
+	gcc fs_server.o simplified_rpc/libstubs.a -o fsServer
 
 client-api.a: libstubs.a client_api.o
 				ar r libclient-api.a client_api.o simplified_rpc/server_stub.o simplified_rpc/client_stub.o simplified_rpc/helper.o simplified_rpc/mybind.o
