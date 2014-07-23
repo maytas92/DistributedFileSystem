@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 
     printf("fsClose(): %s %d\n", toOpen, fsClose(ff));
     
-    /*
+    
     char *toOpen2 = malloc(strlen(dirname) + 1 + strlen("test2.txt") + 1);
     strcpy(toOpen2, dirname);
     strcat(toOpen2, "/");
@@ -109,11 +109,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "fsWrite() wrote fewer than 3\n");
     }
 
-    printf("fsClose(): %s %d\n", toOpen, fsClose(ff));
-
     printf("fsClose(): %s %d\n", toOpen2, fsClose(ff2));
 
-    printf("fsRemove(%s): %d\n", toOpen, fsRemove(toOpen));
+    /*printf("fsRemove(%s): %d\n", toOpen, fsRemove(toOpen));
 
     //printf("fsRemove(%s): %d\n", toOpen2, fsRemove(toOpen2));
 

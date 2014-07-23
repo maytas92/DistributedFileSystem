@@ -30,19 +30,19 @@ int main(int argc, char *argv[]) {
     strcat(toOpenDir, ".");
     printf("Opening dir %s\n", toOpenDir);
 
-    /*char *toOpenDir2 = malloc(strlen(dirname) + 1 + strlen("simplified_rpc") + 1);
+    char *toOpenDir2 = malloc(strlen(dirname) + 1 + strlen("simplified_rpc") + 1);
     strcpy(toOpenDir2, dirname);
     strcat(toOpenDir2, "/");
     strcat(toOpenDir2, "simplified_rpc");
     printf("opening dir %s\n", toOpenDir2);
     
-    */
+    
     FSDIR *fd = fsOpenDir(toOpenDir);
     if(fd == NULL) {
         perror("fsOpenDir"); exit(1);
     }
 
-    /*FSDIR *fd2 = fsOpenDir(toOpenDir2);
+    FSDIR *fd2 = fsOpenDir(toOpenDir2);
     if(fd2 == NULL) {
         perror("fsOpenDir"); exit(1);
     }
@@ -57,21 +57,21 @@ int main(int argc, char *argv[]) {
     for(fdent = fsReadDir(fd2); fdent != NULL; fdent = fsReadDir(fd2)) {
         printf("\t %s, %d\n", fdent->entName, (int)(fdent->entType));
     }
-    */
+    
     char *toOpen = malloc(strlen(dirname) + 1 + strlen("test.txt") + 1);
     strcpy(toOpen, dirname);
     strcat(toOpen, "/");
     strcat(toOpen, "test.txt");
     printf("opening file test.txt in read mode %s\n", toOpen);
 
-    int ff = fsOpen(toOpen, 1);
+    int ff = fsOpen(toOpen, 0);
     if(ff < 0) {
         perror("fsOpen"); exit(1);
     }
     else printf("fsOpen(): %d\n", ff);
 
 
-    /*char fname[15];
+    char fname[15];
     if(fsRead(ff, (void *)fname, 10) < 0) {
         perror("fsRead"); exit(1);
     }
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
         perror("fsOpen"); exit(1);
     }
     else printf("fsOpen(): %d\n", ff);
-    */
+    
     char *buf = "abc";
     if(fsWrite(ff, buf, strlen(buf)) < strlen(buf)) {
         fprintf(stderr, "fsWrite() wrote fewer than 3\n");
@@ -98,8 +98,6 @@ int main(int argc, char *argv[]) {
     strcat(toOpen2, "test2.txt");
     printf("opening file in write mode %s\n", toOpen2);
 
-    //usleep(10000000);
-
     int ff2 = fsOpen(toOpen2, 1);
     if(ff2 < 0) {
         perror("fsOpen()"); exit(1);
@@ -112,7 +110,7 @@ int main(int argc, char *argv[]) {
 
     printf("fsClose(): %s %d\n", toOpen2, fsClose(ff2));
 
-    /*printf("fsRemove(%s): %d\n", toOpen, fsRemove(toOpen));
+    printf("fsRemove(%s): %d\n", toOpen, fsRemove(toOpen));
 
 
     //printf("fsRemove(%s): %d\n", toOpen2, fsRemove(toOpen2));
@@ -122,8 +120,6 @@ int main(int argc, char *argv[]) {
     //printf("Closing folder %s with return code %d\n", toOpenDir2, fsCloseDir(fd2));
 
     printf("fsUnMount(): UnMounting %s with result %d\n", dirname, fsUnMount(dirname));
-    
-    */
 
     //printf("fsCloseDir(): %d\n", fsCloseDir(fd));
 

@@ -10,8 +10,11 @@
 #include <sys/types.h>
 #include "simplified_rpc/ece454rpc_types.h"
 #include <stdint.h>
+#include <time.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-#if 0
+#if 1
 #define _DEBUG_1_
 #endif
 
@@ -170,7 +173,7 @@ int removeMountedServer(const char *localFolderName) {
 * 
 */
 int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *localFolderName) {
-	uint32_t clientIP = getPublicIPAddr();
+	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
 #ifdef _DEBUG_1_
 	printf("fsMount Client IP Address: %d\n", clientIP);
 #endif
@@ -202,7 +205,7 @@ int fsMount(const char *srvIpOrDomName, const unsigned int srvPort, const char *
 int fsUnMount(const char *localFolderName) {
 	// remove the mounted server corresponding to localfoldername from the 'mounted servers'
 	struct mounted_servers* rem_server = getRemoteServer(localFolderName);
-	uint32_t clientIP = getPublicIPAddr();
+	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
 
 	int s = 0;
 	if(rem_server == NULL) {
@@ -240,7 +243,7 @@ int fsUnMount(const char *localFolderName) {
 * errno is set appropriately.
 */
 FSDIR* fsOpenDir(const char *folderName) {
-	uint32_t clientIP = getPublicIPAddr();
+	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
 	char * tmpFolderName = malloc(strlen(folderName) + 1);
 	strcpy(tmpFolderName, folderName);
 	char *localFolderName = strtok(tmpFolderName, "/");
@@ -370,7 +373,7 @@ struct fsDirent *fsReadDir(FSDIR *folder) {
 * positive if no error occurs. Otherwise, it is -1, and errno is set appropriately. 
 */
 int fsOpen(const char *fname, int mode) {
-	uint32_t clientIP = getPublicIPAddr();
+	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
 	char * tmpFName = malloc(strlen(fname) + 1);
 	strcpy(tmpFName, fname);
 	char *localFolderName = strtok(tmpFName, "/");
@@ -488,7 +491,7 @@ int fsClose(int fd) {
 #ifdef _DEBUG_1_
 	printf("FS Close:\n"); fflush(stdout);
 #endif
-	uint32_t clientIP = getPublicIPAddr();
+	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
 	
 	struct clientFD *cfd = getClientByFD(clientIP, fd);
 	struct mounted_servers * ms;
@@ -518,7 +521,7 @@ int fsClose(int fd) {
 	errno = *(int *)serverBuf;
 
 #ifdef _DEBUG_1_
-    printf("FS Close:() ret_val %d and errno %d\n", ret_val, errno);
+    printf("FS Close:() ret_val %d and errno %d\n", ret_val, errno); fflush(stdout);
 #endif
 
     if(!errno) {
@@ -539,7 +542,7 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 #ifdef _DEBUG_1_
 	printf("fsRead():\n"); fflush(stdout);
 #endif
-	uint32_t clientIP = getPublicIPAddr();
+	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
 
 	struct clientFD *cfd = getClientByFD(clientIP, fd);
 	struct mounted_servers *ms;
@@ -569,7 +572,7 @@ int fsRead(int fd, void *buf, const unsigned int count) {
 	errno = *(int *)serverBuf;
 	serverBuf += sizeof(errno);
 
-	buf = serverBuf;
+	memcpy(buf, serverBuf, numBytesRead);
 #ifdef _DEBUG_1_
 	printf("num bytes read: %d, errNo %d and buf %s\n", numBytesRead, errno, serverBuf);
 #endif
@@ -587,7 +590,7 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
 #ifdef _DEBUG_1
 	printf("fsWrite():\n"); fflush(stdout);
 #endif
-	uint32_t clientIP = getPublicIPAddr();
+	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
 
 	struct clientFD *cfd = getClientByFD(clientIP, fd);
 	struct mounted_servers *ms;
@@ -604,8 +607,9 @@ int fsWrite(int fd, const void *buf, const unsigned int count) {
 		return -1;
 	}
 
-	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsWrite_remote", 4,
+	ans = make_remote_call(ms->srvIpOrDomName, ms->srvPort, "fsWrite_remote", 5,
 		sizeof(uint32_t), (void *)&clientIP,
+		strlen(ms->localFolderName) + 1, ms->localFolderName,
 		sizeof(int), (void *)&fd,
 		sizeof(int), (void *)&count,
 		strlen(buf) + 1, buf
@@ -632,7 +636,7 @@ int fsRemove(const char *name) {
 	printf("fsRemove():\n"); fflush(stdout);
 #endif
 
-	uint32_t clientIP = getPublicIPAddr();
+	uint32_t clientIP = getPublicIPAddr() + getPublicIPPortnumber();
 
 	char * tmpFName = malloc(strlen(name) + 1);
 	strcpy(tmpFName, name);
